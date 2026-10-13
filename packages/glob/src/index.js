@@ -1,7 +1,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import { readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { join } from '@optiprune/pathx';
+import { isDynamicPattern, join } from '@optiprune/pathx';
 
 export { isDynamicPattern, escapePath, convertPathToPattern } from '@optiprune/pathx';
 
@@ -27,6 +27,7 @@ function opts(o = {}) {
     filter: o.filter,
     onError: o.onError ?? 'throw',
     absolute: o.absolute ?? true,
+    shouldTraverse: o.shouldTraverse,
   };
 }
 function error(e, o, p) {
@@ -225,6 +226,36 @@ function isNegatedPattern(pattern) {
   return pattern.startsWith('!') && !pattern.startsWith('!(');
 }
 
+function normalizeStaticPath(value) {
+  return value
+    .replaceAll('\\', '/')
+    .replace(/^(?:\.\/)+/, '')
+    .replace(/\/{2,}/g, '/');
+}
+
+function relativeTo(base, value) {
+  const normalizedBase = normalizeStaticPath(base).replace(/\/$/, '');
+  const normalizedValue = normalizeStaticPath(value);
+  return normalizedValue.startsWith(`${normalizedBase}/`)
+    ? normalizedValue.slice(normalizedBase.length + 1)
+    : normalizedValue;
+}
+
+function hasUnescapedQuote(value) {
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === '\\') {
+      i++;
+      continue;
+    }
+    if (value[i] === '"' || value[i] === "'") return true;
+  }
+  return false;
+}
+
+function isStaticPattern(pattern) {
+  return !isDynamicPattern(pattern) && !hasUnescapedQuote(pattern);
+}
+
 // A small NFA over path segments. It handles globstar at any depth, so leaf
 // shortcuts are not tied to one exact pattern shape.
 function compileGlob(pattern) {
@@ -307,9 +338,25 @@ function compileGlob(pattern) {
 }
 export function compilePatternSet(patterns, ignores = []) {
   ignores = Array.isArray(ignores) ? ignores : [ignores];
-  const positives = patterns
-    .filter(pattern => !isNegatedPattern(pattern))
-    .map(pattern => compileGlob(pattern));
+  const staticExact = new Set();
+  const staticPrefixes = new Set();
+  const dynamicPatterns = [];
+  for (const pattern of patterns) {
+    if (isNegatedPattern(pattern)) continue;
+    if (!isStaticPattern(pattern)) {
+      dynamicPatterns.push(pattern);
+      continue;
+    }
+    const normalized = normalizeStaticPath(pattern);
+    staticExact.add(normalized);
+    for (
+      let slash = normalized.lastIndexOf('/');
+      slash !== -1;
+      slash = normalized.lastIndexOf('/', slash - 1)
+    )
+      staticPrefixes.add(normalized.slice(0, slash));
+  }
+  const positives = dynamicPatterns.map(pattern => compileGlob(pattern));
   const negatives = patterns
     .filter(pattern => isNegatedPattern(pattern))
     .map(pattern => compileGlob(pattern.slice(1)))
@@ -319,11 +366,31 @@ export function compilePatternSet(patterns, ignores = []) {
   const hasNegatives = negatives.length > 0;
   const ignored = hasNegatives ? value => negatives.some(pattern => pattern.test(value)) : null;
   const positive = positives.length ? positives : [compileGlob('**')];
+  const hasDynamic = dynamicPatterns.length > 0;
+  const common = {
+    staticExact,
+    staticPrefixes,
+    hasStatics: staticExact.size > 0,
+    hasDynamic,
+    shouldTraverse(dirRelPath) {
+      return hasDynamic || staticPrefixes.has(normalizeStaticPath(dirRelPath));
+    },
+  };
   if (positive.length === 1) {
     const matcher = positive[0];
-    return { ...matcher, hasNegatives, ignored };
+    return {
+      ...matcher,
+      ...common,
+      test(value) {
+        const normalized = normalizeStaticPath(value);
+        return staticExact.has(normalized) || (positives.length > 0 && matcher.test(normalized));
+      },
+      hasNegatives,
+      ignored,
+    };
   }
   return {
+    ...common,
     staticPrefix: [],
     initialAtStaticBase: positive.map(pattern => pattern.initialAtStaticBase),
     advance(states, name) {
@@ -333,7 +400,8 @@ export function compilePatternSet(patterns, ignores = []) {
       return states.some((state, index) => positive[index].complete(state));
     },
     test(value) {
-      return positive.some(pattern => pattern.test(value));
+      const normalized = normalizeStaticPath(value);
+      return staticExact.has(normalized) || positive.some(pattern => pattern.test(normalized));
     },
     leaf: null,
     hasNegatives,
@@ -350,7 +418,7 @@ function normalizeCwd(cwd) {
 
 export async function* crawl(input, inputOptions) {
   const o = opts(inputOptions),
-    stack = [{ path: o.absolute ? root(input) : input, depth: 0 }],
+    stack = [{ path: o.absolute ? root(input) : input, relative: '', depth: 0 }],
     seen = o.followSymlinks ? new Set() : null;
   while (stack.length) {
     if (o.signal?.aborted) throw o.signal.reason ?? new Error('crawl aborted');
@@ -368,6 +436,7 @@ export async function* crawl(input, inputOptions) {
       if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
       const p = join(current.path, entry.name);
+      const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
       let dir = entry.isDirectory();
       if (entry.isSymbolicLink() && o.followSymlinks) {
         try {
@@ -379,6 +448,7 @@ export async function* crawl(input, inputOptions) {
       const e = view(entry, dir);
       if (accepted(e, p, depth, o)) yield p;
       if (dir && current.depth < o.maxDepth && (!entry.isSymbolicLink() || o.followSymlinks)) {
+        if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
         if (seen) {
           try {
             const s = await stat(p),
@@ -389,14 +459,14 @@ export async function* crawl(input, inputOptions) {
             if (error(x, o, p)) continue;
           }
         }
-        stack.push({ path: p, depth: current.depth + 1 });
+        stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
       }
     }
   }
 }
 export function* crawlSync(input, inputOptions) {
   const o = opts(inputOptions),
-    stack = [{ path: o.absolute ? root(input) : input, depth: 0 }],
+    stack = [{ path: o.absolute ? root(input) : input, relative: '', depth: 0 }],
     seen = o.followSymlinks ? new Set() : null;
   while (stack.length) {
     const current = stack.pop();
@@ -413,6 +483,7 @@ export function* crawlSync(input, inputOptions) {
       if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
       const p = join(current.path, entry.name);
+      const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
       let dir = entry.isDirectory();
       if (entry.isSymbolicLink() && o.followSymlinks) {
         try {
@@ -424,6 +495,7 @@ export function* crawlSync(input, inputOptions) {
       const e = view(entry, dir);
       if (accepted(e, p, depth, o)) yield p;
       if (dir && current.depth < o.maxDepth && (!entry.isSymbolicLink() || o.followSymlinks)) {
+        if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
         if (seen) {
           try {
             const s = statSync(p),
@@ -434,7 +506,7 @@ export function* crawlSync(input, inputOptions) {
             if (error(x, o, p)) continue;
           }
         }
-        stack.push({ path: p, depth: current.depth + 1 });
+        stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
       }
     }
   }
@@ -457,7 +529,12 @@ export async function crawlAll(rootPath, inputOptions = {}) {
     inputIsPattern && matcher.staticPrefix.length ? join(cwd, ...matcher.staticPrefix) : cwd;
   const o = opts(
     inputIsPattern
-      ? { ...options, onlyFiles: true, filesOnly: true, dot: options.dot ?? false }
+      ? {
+          ...options,
+          onlyFiles: options.onlyDirectories ? false : (options.onlyFiles ?? true),
+          filesOnly: options.onlyDirectories ? false : (options.filesOnly ?? true),
+          dot: options.dot ?? false,
+        }
       : options,
   );
   if (
@@ -487,17 +564,14 @@ export async function crawlAll(rootPath, inputOptions = {}) {
         includeHidden: o.dot,
         filter: (p, entry, depth) => {
           if (options.filter && options.filter(p, entry, depth) === false) return false;
-          const relativePath = p.startsWith(absoluteCwd + '/')
-            ? p.slice(absoluteCwd.length + 1)
-            : p;
+          const relativePath = relativeTo(absoluteCwd, p);
           return matcher.test(relativePath) && (!matcher.ignored || !matcher.ignored(relativePath));
         },
+        shouldTraverse: relativePath => matcher.shouldTraverse(relativePath),
       };
     const out = [];
     for await (const p of crawl(absoluteCwd, fallbackOptions)) out.push(p);
-    return o.absolute
-      ? out
-      : out.map(p => (p.startsWith(absoluteCwd + '/') ? p.slice(absoluteCwd.length + 1) : p));
+    return o.absolute ? out : out.map(p => relativeTo(absoluteCwd, p));
   }
   const out = [];
   let queue = new Array(1024),
@@ -570,7 +644,15 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       if (matcher && !isDir && !matcher.complete(states)) continue;
       const p = batch.path + entry.name;
       if (accepted(entry, p, depth, o) && (!matcher || matcher.complete(states))) out.push(p);
-      if (isDir && batch.depth < o.maxDepth && (!matcher || states.length))
+      if (
+        isDir &&
+        batch.depth < o.maxDepth &&
+        (!matcher || states.length) &&
+        (!matcher ||
+          matcher.shouldTraverse(
+            relativePath ?? (batch.relative ? batch.relative + '/' + entry.name : entry.name),
+          ))
+      )
         enqueue({
           path: p + '/',
           relative: matcher?.hasNegatives

@@ -105,6 +105,20 @@ describe('@optiprune/glob', () => {
     });
   });
 
+  it('matches static literals with pruning-compatible normalization', async () => {
+    await withFixture(async ({ root }) => {
+      expect(await crawlAll('./src\\index.js', { cwd: root, absolute: false })).toEqual(['src/index.js']);
+      expect(
+        (await crawlAll(['src\\index.js', 'docs/readme.md', 'does-not-exist.js'], {
+          cwd: root,
+          absolute: false,
+        })).sort(),
+      ).toEqual(['docs/readme.md', 'src/index.js']);
+      expect(await crawlAll('src', { cwd: root, onlyDirectories: true, absolute: false })).toEqual(['src']);
+      expect(await crawlAll('src', { cwd: root, onlyFiles: true, absolute: false })).toEqual([]);
+    });
+  });
+
   it('supports hidden-file policy and maximum depth', async () => {
     await withFixture(async ({ root }) => {
       const visible = await crawlAll(root, { filesOnly: true, includeHidden: false });
