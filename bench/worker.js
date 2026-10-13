@@ -9,9 +9,9 @@ import { glob as nodeGlob } from 'glob';
 const [engine, pattern, cwd, iterationsText] = process.argv.slice(2);
 const iterations = Number(iterationsText || 5);
 const runners = {
-  'fast-path-crawler': async () => crawlAll(pattern, { cwd, absolute: true, includeHidden: false }),
+  'microglob': async () => crawlAll(pattern, { cwd, absolute: true, includeHidden: false }),
   'fast-glob': async () => fg(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
-  tinyglobby: async () => tinyGlob(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
+  'tinyglobby': async () => tinyGlob(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
   'node:glob': async () => nodeGlob(pattern, { cwd, absolute: true, nodir: true, dot: false }),
 };
 

@@ -1,1 +1,1 @@
-## OptiPrune's Globber (tinnierglob)
+## OptiPrune's Globber (microglob)

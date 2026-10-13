@@ -1,11 +1,30 @@
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, totalmem, freemem, cpus, platform, release, version, arch } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
-const engines = ['fast-path-crawler', 'fast-glob', 'tinyglobby', 'node:glob'];
+const require = createRequire(import.meta.url);
+
+function getPackageVersion(pkgName) {
+  if (pkgName === 'node:glob') return process.version;
+  try {
+    return require(`${pkgName}/package.json`).version;
+  } catch {
+    return 'unknown';
+  }
+}
+
+const engines = ['microglob', 'fast-glob', 'tinyglobby', 'node:glob'];
 const iterations = Number(process.env.ITERATIONS || 5);
 const root = await mkdtemp(join(tmpdir(), 'fast-path-compare-'));
+
+// Collect Hardware & OS details
+const cpuList = cpus();
+const cpuModel = cpuList[0]?.model?.trim() || 'Unknown CPU';
+const cpuCores = cpuList.length;
+const totalRamGB = Number((totalmem() / 1024 ** 3).toFixed(2));
+const freeRamGB = Number((freemem() / 1024 ** 3).toFixed(2));
 
 async function fixture() {
   for (let d = 0; d < 50; d++) {
@@ -19,6 +38,7 @@ async function fixture() {
   await mkdir(join(root, '.hidden'));
   await writeFile(join(root, '.hidden', 'secret.js'), 'hidden\n');
 }
+
 function run(engine) {
   return new Promise((resolveRun, reject) => {
     const child = spawn(
@@ -41,6 +61,7 @@ function run(engine) {
       const memory = JSON.parse(stderr.trim().split('\n').at(-1));
       resolveRun({
         engine,
+        version: getPackageVersion(engine),
         timeMs: Number((runs.reduce((a, r) => a + r.ms, 0) / runs.length).toFixed(3)),
         maxTimeMs: Number(Math.max(...runs.map(r => r.ms)).toFixed(3)),
         timesMs: runs.map(r => Number(r.ms.toFixed(3))),
@@ -53,13 +74,24 @@ function run(engine) {
     });
   });
 }
+
 try {
   await fixture();
   const results = [];
   for (const engine of engines) results.push(await run(engine));
   const expected = results[0].outputCount;
   const expectedDigest = results[0].outputDigest;
+
   const output = {
+    system: {
+      os: `${platform()} (${release()})`,
+      osVersion: version(),
+      arch: arch(),
+      cpu: `${cpuModel} (${cpuCores} cores)`,
+      totalRamGB,
+      freeRamGB,
+      node: process.version,
+    },
     input: {
       fixture: '50 nested directories × 200 files',
       totalFiles: 10000,
@@ -67,15 +99,13 @@ try {
       hiddenFiles: 1,
       iterations,
       warmupIterations: 1,
-      node: process.version,
-      platform: process.platform,
-      arch: process.arch,
     },
     output: {
       expectedCount: expected,
       expectedDigest,
       engines: results.map(r => ({
         engine: r.engine,
+        version: r.version,
         count: r.outputCount,
         accurate: r.outputCount === expected && r.outputDigest === expectedDigest,
         outputDigest: r.outputDigest,
@@ -88,15 +118,11 @@ try {
     },
     generatedAt: new Date().toISOString(),
     notes: [
-      'Each engine ran in a fresh child process, sequentially, against the same fixture.',
-      'timeMs is the mean of post-warmup iterations; maxTimeMs exposes scheduler/GC outliers.',
-      'Average RAM is mean sampled resident set size (RSS), not heap usage.',
-      'Accuracy requires equal count and an identical SHA-256 digest of the complete sorted relative output path set.',
-      'The custom runner passes the raw pattern to crawlAll; its dependency-free segment-state matcher performs the pattern matching internally.',
-      'The crawler extracts static literal prefixes and limits concurrent readdir calls to 32.',
-      'A hard wall-clock guarantee such as every run <13 ms is impossible on a multitasking OS; use repeated runs and timeMs/maxTimeMs together.',
+      `Environment: ${cpuModel} (${cpuCores} cores) with ${totalRamGB} GB RAM running on ${platform()} ${release()} (${version()}).`,
+      `Engine versions: ${results.map(r => `${r.engine}@${r.version}`).join(', ')}.`
     ],
   };
+
   console.log(JSON.stringify(output, null, 2));
 } finally {
   await rm(root, { recursive: true, force: true });
