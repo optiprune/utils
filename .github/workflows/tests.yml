@@ -32,7 +32,6 @@ jobs:
 
       # 3. pnpm equivalent of `npm ci`
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run build --if-present
 
       # 4. Filter tests by workspace/package
       - name: Run Glob Tests
