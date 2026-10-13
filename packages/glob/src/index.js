@@ -1,14 +1,28 @@
 import { readdir, stat } from 'node:fs/promises';
 import { readdirSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from '@optiprune/pathx';
 
+export { isDynamicPattern, escapePath, convertPathToPattern } from '@optiprune/pathx';
+
 function opts(o = {}) {
+  const onlyDirectories = o.onlyDirectories ?? o.dirsOnly ?? false;
+  const onlyFiles = o.onlyFiles ?? (onlyDirectories ? false : (o.filesOnly ?? true));
+  const dot = o.dot ?? o.includeHidden ?? true;
+  const followSymbolicLinks = o.followSymbolicLinks ?? o.followSymlinks ?? true;
+  const deep = o.deep ?? o.maxDepth ?? Infinity;
   return {
-    filesOnly: o.filesOnly ?? false,
-    dirsOnly: o.dirsOnly ?? false,
-    includeHidden: o.includeHidden ?? true,
-    followSymlinks: o.followSymlinks ?? false,
-    maxDepth: o.maxDepth ?? Infinity,
+    onlyFiles,
+    onlyDirectories,
+    dot,
+    followSymbolicLinks,
+    deep,
+    // Internal compatibility aliases keep the traversal code compact.
+    filesOnly: onlyFiles,
+    dirsOnly: onlyDirectories,
+    includeHidden: dot,
+    followSymlinks: followSymbolicLinks,
+    maxDepth: deep,
     signal: o.signal,
     filter: o.filter,
     onError: o.onError ?? 'throw',
@@ -73,9 +87,12 @@ function globRegex(pattern) {
     } else if (c === '*') source += '[^/]*';
     else if (c === '?') source += '[^/]';
     else if (c === '[') {
-      const end = pattern.indexOf(']', i + 1);
+      let end = i + (pattern[i + 1] === '!' || pattern[i + 1] === '^' ? 2 : 1);
+      if (pattern[end] === ']') end++;
+      end = pattern.indexOf(']', end);
       if (end > i) {
-        source += pattern.slice(i, end + 1);
+        const characterClass = pattern.slice(i, end + 1);
+        source += characterClass[1] === '!' ? `[^${characterClass.slice(2)}` : characterClass;
         i = end;
       } else source += '\\[';
     } else source += /[\\^$+.()|{}]/.test(c) ? '\\' + c : c;
@@ -216,6 +233,10 @@ function hasGlobMagic(value) {
   return /[*?{}\[\]]/.test(value);
 }
 
+function normalizeCwd(cwd) {
+  return cwd instanceof URL ? fileURLToPath(cwd) : (cwd ?? process.cwd());
+}
+
 export async function* crawl(input, inputOptions) {
   const o = opts(inputOptions),
     stack = [{ path: o.absolute ? root(input) : input, depth: 0 }],
@@ -309,29 +330,31 @@ export function* crawlSync(input, inputOptions) {
 }
 
 export async function crawlAll(rootPath, inputOptions = {}) {
+  const cwdPath = normalizeCwd(inputOptions.cwd);
+  const options = { ...inputOptions, cwd: cwdPath };
   const patternList = Array.isArray(rootPath) ? rootPath : [rootPath];
   const inputIsPattern =
     (Array.isArray(rootPath) || typeof rootPath === 'string') &&
     (inputOptions.cwd ||
       patternList.some(hasGlobMagic) ||
       patternList.some(pattern => pattern.startsWith('!')) ||
-      inputOptions.ignore);
+      options.ignore);
   const pattern = inputIsPattern ? patternList : null;
-  const cwd = inputIsPattern ? (inputOptions.cwd ?? process.cwd()) : rootPath;
-  const matcher = inputIsPattern ? compilePatternSet(pattern, inputOptions.ignore ?? []) : null;
+  const cwd = inputIsPattern ? options.cwd : rootPath;
+  const matcher = inputIsPattern ? compilePatternSet(pattern, options.ignore ?? []) : null;
   const base =
     inputIsPattern && matcher.staticPrefix.length ? join(cwd, ...matcher.staticPrefix) : cwd;
   const o = opts(
     inputIsPattern
-      ? { ...inputOptions, filesOnly: true, includeHidden: inputOptions.includeHidden ?? false }
-      : inputOptions,
+      ? { ...options, onlyFiles: true, filesOnly: true, dot: options.dot ?? false }
+      : options,
   );
   if (
     Array.isArray(rootPath) ||
-    inputOptions.absolute === false ||
-    inputOptions.dot !== undefined ||
-    inputOptions.onlyFiles !== undefined ||
-    inputOptions.onlyDirectories !== undefined ||
+    options.absolute === false ||
+    options.dot !== undefined ||
+    options.onlyFiles !== undefined ||
+    options.onlyDirectories !== undefined ||
     o.followSymlinks ||
     o.signal ||
     o.maxDepth !== Infinity ||
@@ -340,21 +363,19 @@ export async function crawlAll(rootPath, inputOptions = {}) {
   ) {
     if (!inputIsPattern) {
       const out = [];
-      for await (const p of crawl(rootPath, inputOptions)) out.push(p);
+      for await (const p of crawl(rootPath, options)) out.push(p);
       return out;
     }
     const absoluteCwd = join(root(cwd)),
-      onlyDirectories = inputOptions.onlyDirectories ?? inputOptions.dirsOnly ?? false,
-      filesOnly = onlyDirectories
-        ? false
-        : (inputOptions.onlyFiles ?? inputOptions.filesOnly ?? true),
+      onlyDirectories = o.onlyDirectories,
+      filesOnly = o.onlyFiles,
       fallbackOptions = {
-        ...inputOptions,
+        ...options,
         filesOnly,
         dirsOnly: onlyDirectories,
-        includeHidden: inputOptions.includeHidden ?? inputOptions.dot ?? false,
+        includeHidden: o.dot,
         filter: (p, entry, depth) => {
-          if (inputOptions.filter && inputOptions.filter(p, entry, depth) === false) return false;
+          if (options.filter && options.filter(p, entry, depth) === false) return false;
           const relativePath = p.startsWith(absoluteCwd + '/')
             ? p.slice(absoluteCwd.length + 1)
             : p;

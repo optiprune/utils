@@ -1,10 +1,13 @@
 import { crawl, crawlAll, crawlSync, compilePatternSet } from './index.js';
 import { resolve } from '@optiprune/pathx';
+import { fileURLToPath } from 'node:url';
 
 export { crawl, crawlAll, crawlSync };
+export { isDynamicPattern, escapePath, convertPathToPattern } from '@optiprune/pathx';
 
 export const glob = crawlAll;
 export const globSync = (patterns, options = {}) => {
+  const cwdPath = options.cwd instanceof URL ? fileURLToPath(options.cwd) : (options.cwd ?? process.cwd());
   const patternList = Array.isArray(patterns) ? patterns : [patterns];
   const isPattern =
     Array.isArray(patterns) ||
@@ -13,8 +16,8 @@ export const globSync = (patterns, options = {}) => {
     patternList.some(pattern => pattern.startsWith('!')) ||
     options.ignore;
   const onlyDirectories = options.onlyDirectories ?? options.dirsOnly ?? false;
-  const filesOnly = onlyDirectories ? false : (options.onlyFiles ?? options.filesOnly ?? true);
-  const includeHidden = options.includeHidden ?? options.dot ?? false;
+  const filesOnly = options.onlyFiles ?? (onlyDirectories ? false : (options.filesOnly ?? true));
+  const includeHidden = options.dot ?? options.includeHidden ?? false;
   if (!isPattern) {
     const singleTarget = typeof patterns === 'string' ? patterns : patterns[0];
     return [
@@ -26,7 +29,7 @@ export const globSync = (patterns, options = {}) => {
       }),
     ];
   }
-  const cwd = resolve(options.cwd ?? process.cwd());
+  const cwd = resolve(cwdPath);
   const cwdPrefix = cwd.endsWith('/') ? cwd : `${cwd}/`;
   const matcher = compilePatternSet(patternList, options.ignore ?? []);
   const result = [];

@@ -20,3 +20,7 @@ export declare function join(...paths: string[]): string;
  * relative to the current working directory.
  */
 export declare function resolve(...paths: string[]): string;
+
+export declare function isDynamicPattern(pattern: string): boolean;
+export declare function escapePath(path: string): string;
+export declare function convertPathToPattern(path: string): string;

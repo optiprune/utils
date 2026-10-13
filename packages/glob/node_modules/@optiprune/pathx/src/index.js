@@ -110,3 +110,20 @@ export function resolve(...paths) {
   if (!isAbsolute(out)) out = process.cwd() + (out ? '/' + out : '');
   return normalize(out);
 }
+
+const GLOB_MAGIC = /[*?{}[\]()!@+]/;
+const GLOB_ESCAPE = /[*?{}[\]()!@+]/g;
+
+export function isDynamicPattern(pattern) {
+  return typeof pattern === 'string' && GLOB_MAGIC.test(pattern);
+}
+
+export function escapePath(path) {
+  if (typeof path !== 'string') throw new TypeError('path must be a string');
+  return path.replace(GLOB_ESCAPE, '\\$&');
+}
+
+export function convertPathToPattern(path) {
+  if (typeof path !== 'string') throw new TypeError('path must be a string');
+  return path.replaceAll('\\', '/');
+}
