@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/optiprune/utils/refs/heads/main/assets/animation.svg" alt="OptiPrune" width="520">
+</p>
+
+<p align="center">
+  <strong>Fast, focused filesystem utilities for Node.js.</strong><br>
+  Iterative traversal, glob-aware search, and cross-platform path helpers — with no runtime dependencies.
+</p>
+
 # @optiprune/glob
 
 Fast, dependency-light filesystem crawler for Node.js with async and sync iterators and built-in glob matching.
