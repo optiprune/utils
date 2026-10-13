@@ -1,2 +1,16 @@
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'; import { tmpdir } from 'node:os'; import { join } from 'node:path'; import { crawlAll } from '../src/index.js';
-const r = await mkdtemp(join(tmpdir(), 'fast-crawl-bench-')); for (let d = 0; d < 50; d++) { const dir = join(r, 'd' + d); await mkdir(dir); for (let f = 0; f < 200; f++) await writeFile(join(dir, 'f' + f + '.js'), ''); } for (let i = 0; i < 5; i++) { const t = performance.now(); const out = await crawlAll(r, { filesOnly: true }); console.log(`${out.length} files: ${(performance.now() - t).toFixed(2)} ms`); } await rm(r, { recursive: true, force: true });
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { crawlAll } from '../src/index.js';
+const r = await mkdtemp(join(tmpdir(), 'fast-crawl-bench-'));
+for (let d = 0; d < 50; d++) {
+  const dir = join(r, 'd' + d);
+  await mkdir(dir);
+  for (let f = 0; f < 200; f++) await writeFile(join(dir, 'f' + f + '.js'), '');
+}
+for (let i = 0; i < 5; i++) {
+  const t = performance.now();
+  const out = await crawlAll(r, { filesOnly: true });
+  console.log(`${out.length} files: ${(performance.now() - t).toFixed(2)} ms`);
+}
+await rm(r, { recursive: true, force: true });

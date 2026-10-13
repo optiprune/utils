@@ -11,8 +11,8 @@ const iterations = Number(iterationsText || 5);
 const runners = {
   'fast-path-crawler': async () => crawlAll(pattern, { cwd, absolute: true, includeHidden: false }),
   'fast-glob': async () => fg(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
-  'tinyglobby': async () => tinyGlob(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
-  'node:glob': async () => nodeGlob(pattern, { cwd, absolute: true, nodir: true, dot: false })
+  tinyglobby: async () => tinyGlob(pattern, { cwd, absolute: true, onlyFiles: true, dot: false }),
+  'node:glob': async () => nodeGlob(pattern, { cwd, absolute: true, nodir: true, dot: false }),
 };
 
 const run = runners[engine];
@@ -26,11 +26,25 @@ for (let i = 0; i < iterations + 1; i++) {
   const start = performance.now();
   output = await run();
   const elapsed = performance.now() - start;
-  if (i > 0) process.stdout.write(JSON.stringify({ iteration: i, ms: elapsed, count: output.length }) + '\n');
+  if (i > 0)
+    process.stdout.write(
+      JSON.stringify({ iteration: i, ms: elapsed, count: output.length }) + '\n',
+    );
   sample();
 }
 clearInterval(timer);
 sample();
 const avgRss = samples.reduce((a, b) => a + b, 0) / samples.length;
-const digest = createHash('sha256').update(JSON.stringify(output.map(p => relative(cwd, p)).sort())).digest('hex');
-process.stderr.write(JSON.stringify({ engine, averageRssBytes: Math.round(avgRss), peakRssBytes: Math.max(...samples), samples: samples.length, outputCount: output.length, outputDigest: digest }) + '\n');
+const digest = createHash('sha256')
+  .update(JSON.stringify(output.map(p => relative(cwd, p)).sort()))
+  .digest('hex');
+process.stderr.write(
+  JSON.stringify({
+    engine,
+    averageRssBytes: Math.round(avgRss),
+    peakRssBytes: Math.max(...samples),
+    samples: samples.length,
+    outputCount: output.length,
+    outputDigest: digest,
+  }) + '\n',
+);

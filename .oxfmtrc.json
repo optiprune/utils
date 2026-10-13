@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxfmt/configuration_schema.json",
+  "tabWidth": 2,
+  "useTabs": false,
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "bracketSpacing": true,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "ignorePatterns": [
+    "**/tests/**",
+    "**/test/**",
+    "**/fixtures/**",
+    "dist/**",
+    "coverage/**",
+    "node_modules/**"
+  ]
+}

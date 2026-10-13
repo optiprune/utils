@@ -4,7 +4,13 @@ A **zero-dependency**, iterative filesystem crawler for Node.js. The release wor
 
 ```js
 import { crawl, crawlAll, crawlSync } from 'fast-path-crawler';
-for await (const file of crawl('src', { filesOnly: true, includeHidden: false, maxDepth: 10, filter: p => p.endsWith('.js') })) console.log(file);
+for await (const file of crawl('src', {
+  filesOnly: true,
+  includeHidden: false,
+  maxDepth: 10,
+  filter: p => p.endsWith('.js'),
+}))
+  console.log(file);
 ```
 
 Options: `filesOnly`, `dirsOnly`, `includeHidden`, `followSymlinks`, `maxDepth`, `absolute`, `signal`, `filter`, and `onError` (`throw`, `ignore`, or `(error, path) => false`). `crawlSync` is a sync generator; `crawlAll` collects results. Path helpers accept Windows separators and output `/` paths.

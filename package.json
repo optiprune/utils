@@ -1,12 +1,32 @@
 {
   "name": "@optiprune/main",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "description": "Zero-dependency iterative filesystem crawler with fast path primitives.",
+  "bin": {
+    "fast-crawl": "./src/cli.js"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "files": [
+    "src",
+    "packages",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "type": "module",
-  "exports": { ".": "./src/index.js" },
-  "bin": { "fast-crawl": "./src/cli.js" },
-  "scripts": { "test": "node --test", "bench": "node bench/crawl.js", "bench:compare": "node bench/compare.js" },
-  "workspaces": ["packages/*"],
-  "files": ["src", "packages", "README.md", "LICENSE", "package.json"]
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "bench": "node bench/crawl.js",
+    "bench:compare": "node bench/compare.js",
+    "fmt": "oxfmt --ignore-path .oxfmtignore"
+  },
+  "devDependencies": {
+    "oxfmt": "0.72.0"
+  }
 }

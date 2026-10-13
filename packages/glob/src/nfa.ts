@@ -1,1 +1,1 @@
-export { } from './nfa.js';
+export {} from './nfa.js';

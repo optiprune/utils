@@ -2,10 +2,17 @@
   "name": "@optiprune/glob",
   "version": "0.1.0",
   "description": "Fast dependency-light glob crawler with segment matching and bounded traversal.",
+  "files": [
+    "src",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
-  "exports": { ".": "./src/public.js" },
-  "dependencies": { 
-    "@optiprune/pathx": "workspace:*" 
+  "exports": {
+    ".": "./src/public.js"
   },
-  "files": ["src", "package.json"]
+  "dependencies": {
+    "@optiprune/pathx": "workspace:*"
+  }
 }

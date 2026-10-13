@@ -2,7 +2,14 @@
   "name": "@optiprune/pathx",
   "version": "0.1.0",
   "description": "Zero-dependency fast path primitives for optiprune.",
+  "files": [
+    "src",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
-  "exports": { ".": "./src/index.js" },
-  "files": ["src", "package.json"]
+  "exports": {
+    ".": "./src/index.js"
+  }
 }

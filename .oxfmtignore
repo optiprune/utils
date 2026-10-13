@@ -1,0 +1,14 @@
+# Ignore all test directories and fixtures
+**/tests/**
+**/test/**
+**/fixtures/**
+
+# Build artifacts & package manager directories
+dist/**
+coverage/**
+node_modules/**
+.pnpm-store/**
+
+# Benchmark outputs & reports
+benchmark-results.json
+*.log

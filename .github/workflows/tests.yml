@@ -15,23 +15,30 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         node-version: [20, 22]
-    name: Validate (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    name: Validate (${{ matrix.os }}, Node${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v4
 
+      # 1. Install pnpm first so setup-node can cache its store
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # 2. Setup Node and enable pnpm caching
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
-      - run: npm run build
+      # 3. pnpm equivalent of `npm ci`
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build --if-present
 
-      # Vitest will filter tests matching the glob directory path
+      # 4. Filter tests by workspace/package
       - name: Run Glob Tests
-        run: npm run test -- packages/glob
+        run: pnpm --filter @optiprune/glob test
 
-      - name: Upload coverage reports to Codecov
+      - name: Upload coverage reports to Codecov (Glob)
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -42,8 +49,9 @@ jobs:
         continue-on-error: true
 
       - name: Run PathX Tests
-        run: npm run test --workspace @optiprune/pathx
-      - name: Upload coverage reports to Codecov
+        run: pnpm --filter @optiprune/pathx test
+
+      - name: Upload coverage reports to Codecov (PathX)
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
