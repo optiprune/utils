@@ -29,9 +29,6 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm run build --if-present
-
       - name: Publish @optiprune/pathx
         run: pnpm --filter @optiprune/pathx publish --access public --no-git-checks --provenance
         env:
