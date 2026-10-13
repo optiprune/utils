@@ -6,7 +6,8 @@ import { glob as microglob, globSync as microglobSync } from '../packages/glob/s
 import { glob as tinyglobby, globSync as tinyglobbySync } from 'tinyglobby';
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), 'microglob-compat-'));
+  const rawRoot = await mkdtemp(join(tmpdir(), 'microglob-compat-'));
+  const root = rawRoot.replaceAll('\\', '/');
   const files = [
     'src/index.js',
     'src/index.test.js',
@@ -22,11 +23,11 @@ async function fixture() {
     'empty/.keep',
   ];
   for (const file of files) {
-    const path = join(root, file);
+    const path = resolve(root, file);
     await mkdir(resolve(path, '..'), { recursive: true });
     await writeFile(path, file);
   }
-  await symlink(join(root, 'src'), join(root, 'linked-src'));
+  await symlink(resolve(root, 'src'), resolve(root, 'linked-src'));
   return { root, files, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 

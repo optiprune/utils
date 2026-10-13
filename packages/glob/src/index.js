@@ -378,7 +378,9 @@ export function compilePatternSet(patterns, ignores = []) {
   const ignored = hasNegatives
     ? value => negatives.some(pattern => testNegative(pattern, value))
     : null;
-  const leafNegatives = negatives.filter(pattern => pattern.leaf && pattern.staticPrefix.length === 0);
+  const leafNegatives = negatives.filter(
+    pattern => pattern.leaf && pattern.staticPrefix.length === 0,
+  );
   const ignoredLeaf = leafNegatives.length
     ? value => leafNegatives.some(pattern => pattern.leaf(value))
     : null;
@@ -682,10 +684,10 @@ export async function crawlAll(rootPath, inputOptions = {}) {
           if (matcher.ignored(relativePath) || matcher.ignored(relativePath + '/')) continue;
         } else if (
           (!directFile && matcher.ignoredLeaf?.(entry.name)) ||
-          (matcher.ignoredPath && matcher.ignoredPath(
-            batch.relative ? batch.relative + '/' + entry.name : entry.name,
-          ))
-        ) continue;
+          (matcher.ignoredPath &&
+            matcher.ignoredPath(batch.relative ? batch.relative + '/' + entry.name : entry.name))
+        )
+          continue;
       }
       if (matcher && !isDir && matcher.leaf) {
         if (!matcher.leaf(entry.name)) continue;
@@ -694,9 +696,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       }
       let states = batch.states;
       if (matcher) {
-        states = isDir && matcher.leaf
-          ? batch.states
-          : matcher.advance(batch.states, entry.name);
+        states = isDir && matcher.leaf ? batch.states : matcher.advance(batch.states, entry.name);
         if (!states.length) continue;
       }
       if (matcher && !isDir && !matcher.complete(states)) continue;

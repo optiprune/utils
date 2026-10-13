@@ -38,7 +38,12 @@ const profiles = [
   },
 ];
 
-const digest = values => crypto.createHash('sha256').update(JSON.stringify([...values].sort())).digest('hex').slice(0, 16);
+const digest = values =>
+  crypto
+    .createHash('sha256')
+    .update(JSON.stringify([...values].sort()))
+    .digest('hex')
+    .slice(0, 16);
 const normalize = values => values.map(value => value.replaceAll('\\', '/').replace(/\/$/, ''));
 const summary = values => ({
   minMs: Math.min(...values),
@@ -53,9 +58,21 @@ async function createFixture(profile) {
     for (let level = 1; level < profile.depth; level++) dir = join(dir, `level-${level}`);
     await mkdir(dir, { recursive: true });
     for (let i = 0; i < profile.filesPerDir; i++) {
-      let ext = i % 10 === 0 ? 'json' : i % 10 === 1 ? 'd.ts' : i % 10 === 2 ? 'test.js' : i % 3 === 0 ? 'ts' : 'js';
+      let ext =
+        i % 10 === 0
+          ? 'json'
+          : i % 10 === 1
+            ? 'd.ts'
+            : i % 10 === 2
+              ? 'test.js'
+              : i % 3 === 0
+                ? 'ts'
+                : 'js';
       if (profile.mixed && i % 17 === 0) ext = 'md';
-      await writeFile(join(dir, `file-${String(i).padStart(4, '0')}.${ext}`), `${profile.name}:${d}:${i}\n`);
+      await writeFile(
+        join(dir, `file-${String(i).padStart(4, '0')}.${ext}`),
+        `${profile.name}:${d}:${i}\n`,
+      );
     }
   }
   await mkdir(join(root, '.config'), { recursive: true });
@@ -72,7 +89,11 @@ function casesFor(profile) {
   const target = profile.depth > 1 ? `dir-000/**/*.ts` : 'dir-000/**/*.ts';
   return [
     ['recursive-extensions', '**/*.{js,ts,json}', { followSymbolicLinks: false }],
-    ['negation', ['**/*.{js,ts,json}', '!**/*.test.js', '!**/*.d.ts'], { followSymbolicLinks: false }],
+    [
+      'negation',
+      ['**/*.{js,ts,json}', '!**/*.test.js', '!**/*.d.ts'],
+      { followSymbolicLinks: false },
+    ],
     ['targeted-subtree', target, { followSymbolicLinks: false }],
     ['hidden-files', '**/*.json', { dot: true, followSymbolicLinks: false }],
     ['directories-only', '**', { onlyDirectories: true, followSymbolicLinks: false }],
@@ -86,7 +107,8 @@ async function measurePair(microFn, tinyFn) {
     await microFn();
     await tinyFn();
   }
-  const microTimes = [], tinyTimes = [];
+  const microTimes = [],
+    tinyTimes = [];
   let microResult, tinyResult;
   for (let i = 0; i < 10; i++) {
     let start = performance.now();
@@ -119,7 +141,9 @@ for (const profile of profiles) {
         case: name,
         microglob: measured.microglob,
         tinyglobby: measured.tinyglobby,
-        parity: measured.microglob.count === measured.tinyglobby.count && measured.microglob.digest === measured.tinyglobby.digest,
+        parity:
+          measured.microglob.count === measured.tinyglobby.count &&
+          measured.microglob.digest === measured.tinyglobby.digest,
         ratioAvg: measured.microglob.avgMs / measured.tinyglobby.avgMs,
       });
     }
@@ -128,10 +152,16 @@ for (const profile of profiles) {
   }
 }
 
-console.log(JSON.stringify({
-  node: process.version,
-  profiles: profiles.map(({ name, description }) => ({ name, description })),
-  warmups: 3,
-  measuredRuns: 10,
-  results: allResults,
-}, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      node: process.version,
+      profiles: profiles.map(({ name, description }) => ({ name, description })),
+      warmups: 3,
+      measuredRuns: 10,
+      results: allResults,
+    },
+    null,
+    2,
+  ),
+);
