@@ -67,13 +67,40 @@ describe('@optiprune/glob', () => {
         cwd: root,
         absolute: false,
       });
-      expect(relative(root, result)).toEqual([
+      expect(result).toEqual([
         'src/index.js',
         'src/nested/deep.ts',
       ]);
 
-      expect(relative(root, await crawlAll('docs/?????.txt', { cwd: root, absolute: false }))).toEqual(['docs/guide.txt']);
-      expect(relative(root, await crawlAll('docs/[gr]*.md', { cwd: root, absolute: false }))).toEqual(['docs/readme.md']);
+      expect(await crawlAll('docs/?????.txt', { cwd: root, absolute: false })).toEqual(['docs/guide.txt']);
+      expect(await crawlAll('docs/[gr]*.md', { cwd: root, absolute: false })).toEqual(['docs/readme.md']);
+    });
+  });
+
+  it('supports array patterns, relative results, and directory options', async () => {
+    await withFixture(async ({ root }) => {
+      expect(
+        (await crawlAll(['src/index.js', 'docs/*.md'], { cwd: root, absolute: false })).sort(),
+      ).toEqual(['docs/readme.md', 'src/index.js']);
+      expect(
+        globSync(['src/index.js', 'docs/*.md'], { cwd: root, absolute: false }).sort(),
+      ).toEqual(['docs/readme.md', 'src/index.js']);
+      expect(relative(root, globSync(root, { onlyDirectories: true, maxDepth: 1 }))).toEqual([
+        'docs',
+        'empty',
+        'src',
+      ]);
+      expect((await crawlAll('**/*', { cwd: root, onlyDirectories: true, absolute: false })).sort()).toEqual([
+        'docs',
+        'empty',
+        'empty/real-directory',
+        'src',
+        'src/nested',
+      ]);
+      expect(await crawlAll('**/*.json', { cwd: root, dot: false, absolute: false })).toEqual([]);
+      expect(await crawlAll('**/*.json', { cwd: root, dot: true, absolute: false })).toEqual([
+        '.config/secret.json',
+      ]);
     });
   });
 

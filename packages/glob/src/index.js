@@ -177,7 +177,7 @@ function compileGlob(pattern) {
       : null;
   return { advance, complete, test, initialAtStaticBase, staticPrefix, leaf };
 }
-function compilePatternSet(patterns, ignores = []) {
+export function compilePatternSet(patterns, ignores = []) {
   ignores = Array.isArray(ignores) ? ignores : [ignores];
   const positives = patterns
     .filter(pattern => !pattern.startsWith('!'))
@@ -232,6 +232,8 @@ export async function* crawl(input, inputOptions) {
     }
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
+      const depth = current.depth + 1;
+      if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
       const p = join(current.path, entry.name);
       let dir = entry.isDirectory();
@@ -243,7 +245,7 @@ export async function* crawl(input, inputOptions) {
         }
       }
       const e = view(entry, dir);
-      if (accepted(e, p, current.depth + 1, o)) yield p;
+      if (accepted(e, p, depth, o)) yield p;
       if (dir && current.depth < o.maxDepth && (!entry.isSymbolicLink() || o.followSymlinks)) {
         if (seen) {
           try {
@@ -275,6 +277,8 @@ export function* crawlSync(input, inputOptions) {
     }
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
+      const depth = current.depth + 1;
+      if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
       const p = join(current.path, entry.name);
       let dir = entry.isDirectory();
@@ -286,7 +290,7 @@ export function* crawlSync(input, inputOptions) {
         }
       }
       const e = view(entry, dir);
-      if (accepted(e, p, current.depth + 1, o)) yield p;
+      if (accepted(e, p, depth, o)) yield p;
       if (dir && current.depth < o.maxDepth && (!entry.isSymbolicLink() || o.followSymlinks)) {
         if (seen) {
           try {
@@ -323,6 +327,11 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       : inputOptions,
   );
   if (
+    Array.isArray(rootPath) ||
+    inputOptions.absolute === false ||
+    inputOptions.dot !== undefined ||
+    inputOptions.onlyFiles !== undefined ||
+    inputOptions.onlyDirectories !== undefined ||
     o.followSymlinks ||
     o.signal ||
     o.maxDepth !== Infinity ||
@@ -335,10 +344,15 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       return out;
     }
     const absoluteCwd = root(cwd),
+      onlyDirectories = inputOptions.onlyDirectories ?? inputOptions.dirsOnly ?? false,
+      filesOnly = onlyDirectories
+        ? false
+        : (inputOptions.onlyFiles ?? inputOptions.filesOnly ?? true),
       fallbackOptions = {
         ...inputOptions,
-        filesOnly: true,
-        includeHidden: inputOptions.includeHidden ?? false,
+        filesOnly,
+        dirsOnly: onlyDirectories,
+        includeHidden: inputOptions.includeHidden ?? inputOptions.dot ?? false,
         filter: (p, entry, depth) => {
           if (inputOptions.filter && inputOptions.filter(p, entry, depth) === false) return false;
           const relativePath = p.startsWith(absoluteCwd + '/')
@@ -349,7 +363,9 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       };
     const out = [];
     for await (const p of crawl(absoluteCwd, fallbackOptions)) out.push(p);
-    return out;
+    return o.absolute
+      ? out
+      : out.map(p => (p.startsWith(absoluteCwd + '/') ? p.slice(absoluteCwd.length + 1) : p));
   }
   const out = [];
   let queue = new Array(1024),
@@ -398,6 +414,8 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       entries = [];
     }
     for (const entry of entries) {
+      const depth = batch.depth + 1;
+      if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
       const isDir = entry.isDirectory();
       let relativePath;
@@ -409,7 +427,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       if (matcher && !isDir && matcher.leaf) {
         if (!matcher.leaf(entry.name)) continue;
         const p = batch.path + entry.name;
-        if (accepted(entry, p, batch.depth + 1, o)) out.push(p);
+        if (accepted(entry, p, depth, o)) out.push(p);
         continue;
       }
       let states = batch.states;
@@ -419,8 +437,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       }
       if (matcher && !isDir && !matcher.complete(states)) continue;
       const p = batch.path + entry.name;
-      if (accepted(entry, p, batch.depth + 1, o) && (!matcher || matcher.complete(states)))
-        out.push(p);
+      if (accepted(entry, p, depth, o) && (!matcher || matcher.complete(states))) out.push(p);
       if (isDir && batch.depth < o.maxDepth && (!matcher || states.length))
         enqueue({
           path: p + '/',

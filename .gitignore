@@ -10,7 +10,7 @@
 # Build artifacts & package manager directories
 dist/**
 coverage/**
-node_modules/**
+**/node_modules/**
 .pnpm-store/**
 
 # Benchmark outputs & reports
