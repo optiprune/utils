@@ -42,7 +42,11 @@ export const globSync = (patterns, options = {}) => {
     filter: (path, entry, depth) => {
       if (options.filter && options.filter(path, entry, depth) === false) return false;
       const relativePath = path.startsWith(cwdPrefix) ? path.slice(cwdPrefix.length) : path;
-      return matcher.test(relativePath) && (!matcher.ignored || !matcher.ignored(relativePath));
+      const matches =
+        matcher.leaf && entry.isFile() && !matcher.hasNegatives
+          ? matcher.leaf(entry.name)
+          : matcher.test(relativePath);
+      return matches && (!matcher.ignored || !matcher.ignored(relativePath));
     },
   })) {
     result.push(

@@ -1,5 +1,5 @@
-import { readdir, stat } from 'node:fs/promises';
-import { readdirSync, statSync } from 'node:fs';
+import { realpath, readdir, stat } from 'node:fs/promises';
+import { readdirSync, realpathSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isDynamicPattern, join } from '@optiprune/pathx';
 
@@ -201,6 +201,8 @@ function escapeRegex(value) {
 function classifySegment(segment) {
   const setMatch = /^\{([^{}]+(?:,[^{}]+)+)\}$/.exec(segment);
   if (setMatch) return { tier: 'set', set: new Set(setMatch[1].split(',')) };
+  const suffixSetMatch = /^\*\{([^{}]+(?:,[^{}]+)+)\}$/.exec(segment);
+  if (suffixSetMatch) return { tier: 'suffixSet', suffixes: suffixSetMatch[1].split(',') };
   if (!/[?*\[\]{}@+!()]/.test(segment)) return { tier: 'exact' };
   if (segment[0] === '*' && !/[?*\[\]{}@+!()]/.test(segment.slice(1)))
     return { tier: 'suffix', suffix: segment.slice(1) };
@@ -211,6 +213,9 @@ function compileSegment(segment) {
   const classification = classifySegment(segment);
   if (classification.tier === 'exact') return name => name === segment;
   if (classification.tier === 'set') return name => classification.set.has(name);
+  if (classification.tier === 'suffixSet')
+    return name =>
+      classification.suffixes.some(suffix => name.length > suffix.length && name.endsWith(suffix));
   if (classification.tier === 'suffix') {
     if (!classification.suffix) return () => true;
     return name =>
@@ -467,7 +472,7 @@ export async function* crawl(input, inputOptions) {
 export function* crawlSync(input, inputOptions) {
   const o = opts(inputOptions),
     stack = [{ path: o.absolute ? root(input) : input, relative: '', depth: 0 }],
-    seen = o.followSymlinks ? new Set() : null;
+    seenPaths = o.followSymlinks ? new Set([root(input).replace(/\/$/, '')]) : null;
   while (stack.length) {
     const current = stack.pop();
     let entries;
@@ -477,6 +482,8 @@ export function* crawlSync(input, inputOptions) {
       if (error(e, o, current.path)) continue;
       entries = [];
     }
+    if (o.followSymlinks && entries.some(entry => entry.isSymbolicLink()))
+      entries.sort((a, b) => Number(b.isSymbolicLink()) - Number(a.isSymbolicLink()));
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
       const depth = current.depth + 1;
@@ -485,26 +492,27 @@ export function* crawlSync(input, inputOptions) {
       const p = join(current.path, entry.name);
       const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
       let dir = entry.isDirectory();
-      if (entry.isSymbolicLink() && o.followSymlinks) {
+      const isSymlink = entry.isSymbolicLink();
+      if (isSymlink && o.followSymlinks) {
         try {
-          dir = statSync(p).isDirectory();
+          const target = statSync(p);
+          dir = target.isDirectory();
+          if (dir && seenPaths) {
+            const targetPath = realpathSync(p);
+            if (seenPaths.has(targetPath)) continue;
+            seenPaths.add(targetPath);
+          }
         } catch (e) {
           if (error(e, o, p)) continue;
         }
       }
       const e = view(entry, dir);
       if (accepted(e, p, depth, o)) yield p;
-      if (dir && current.depth < o.maxDepth && (!entry.isSymbolicLink() || o.followSymlinks)) {
+      if (dir && current.depth < o.maxDepth && (!isSymlink || o.followSymlinks)) {
         if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
-        if (seen) {
-          try {
-            const s = statSync(p),
-              key = s.dev + ':' + s.ino;
-            if (seen.has(key)) continue;
-            seen.add(key);
-          } catch (x) {
-            if (error(x, o, p)) continue;
-          }
+        if (seenPaths) {
+          if (seenPaths.has(p)) continue;
+          seenPaths.add(p);
         }
         stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
       }
@@ -543,7 +551,6 @@ export async function crawlAll(rootPath, inputOptions = {}) {
     options.dot !== undefined ||
     options.onlyFiles !== undefined ||
     options.onlyDirectories !== undefined ||
-    o.followSymlinks ||
     o.signal ||
     o.maxDepth !== Infinity ||
     o.onError !== 'throw' ||
@@ -602,6 +609,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
     depth: matcher?.staticPrefix.length ?? 0,
     states: matcher?.initialAtStaticBase,
   });
+  const seenPaths = o.followSymlinks ? new Set([root(base).replace(/\/$/, '')]) : null;
   let active = 0,
     failed = false,
     resolveDone,
@@ -619,20 +627,36 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       if (error(e, o, batch.path)) return;
       entries = [];
     }
+    if (o.followSymlinks && entries.some(entry => entry.isSymbolicLink()))
+      entries.sort((a, b) => Number(a.isSymbolicLink()) - Number(b.isSymbolicLink()));
     for (const entry of entries) {
       const depth = batch.depth + 1;
       if (depth > o.maxDepth) continue;
       if (!o.includeHidden && entry.name[0] === '.') continue;
-      const isDir = entry.isDirectory();
+      const isSymlink = entry.isSymbolicLink();
+      let isDir = entry.isDirectory();
       let relativePath;
       if (matcher?.hasNegatives) {
         relativePath = batch.relative ? batch.relative + '/' + entry.name : entry.name;
         if (matcher.ignored(relativePath) || (isDir && matcher.ignored(relativePath + '/')))
           continue;
       }
+      const p = batch.path + entry.name;
+      if (isSymlink && o.followSymlinks) {
+        try {
+          const target = await stat(p);
+          isDir = target.isDirectory();
+          if (isDir && seenPaths) {
+            const targetPath = await realpath(p);
+            if (seenPaths.has(targetPath)) continue;
+            seenPaths.add(targetPath);
+          }
+        } catch (e) {
+          if (error(e, o, p)) continue;
+        }
+      }
       if (matcher && !isDir && matcher.leaf) {
         if (!matcher.leaf(entry.name)) continue;
-        const p = batch.path + entry.name;
         if (accepted(entry, p, depth, o)) out.push(p);
         continue;
       }
@@ -642,17 +666,21 @@ export async function crawlAll(rootPath, inputOptions = {}) {
         if (!states.length) continue;
       }
       if (matcher && !isDir && !matcher.complete(states)) continue;
-      const p = batch.path + entry.name;
       if (accepted(entry, p, depth, o) && (!matcher || matcher.complete(states))) out.push(p);
       if (
         isDir &&
         batch.depth < o.maxDepth &&
         (!matcher || states.length) &&
+        (!isSymlink || o.followSymlinks) &&
         (!matcher ||
           matcher.shouldTraverse(
             relativePath ?? (batch.relative ? batch.relative + '/' + entry.name : entry.name),
           ))
-      )
+      ) {
+        if (seenPaths) {
+          if (seenPaths.has(p)) continue;
+          seenPaths.add(p);
+        }
         enqueue({
           path: p + '/',
           relative: matcher?.hasNegatives
@@ -661,6 +689,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
           depth: batch.depth + 1,
           states,
         });
+      }
     }
   }
   function pump() {
