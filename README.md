@@ -16,10 +16,10 @@
 
 ## Packages
 
-| Package | Purpose |
-| --- | --- |
-| [`@optiprune/glob`](packages/glob) | Async and sync filesystem crawler with fast glob matching, bounded concurrency, and backpressure. |
-| [`@optiprune/pathx`](packages/pathx) | Small, dependency-free path primitives for `/` and `\` separators. |
+| Package                              | Purpose                                                                                           |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| [`@optiprune/glob`](packages/glob)   | Async and sync filesystem crawler with fast glob matching, bounded concurrency, and backpressure. |
+| [`@optiprune/pathx`](packages/pathx) | Small, dependency-free path primitives for `/` and `\` separators.                                |
 
 ## Quick start
 
@@ -75,19 +75,19 @@ for (const path of crawlSync('src', { filesOnly: true, absolute: false })) {
 import { normalize, isAbsolute, join, resolve } from '@optiprune/pathx';
 
 normalize('src\\lib\\..\\index.js'); // 'src/index.js'
-join('src', 'lib', 'file.js');        // 'src/lib/file.js'
+join('src', 'lib', 'file.js'); // 'src/lib/file.js'
 ```
 
 ## Benchmark
 
 Reproducible comparison with `pnpm bench:compare` on a temporary fixture containing 50 nested directories and 10,000 files (`**/*.{js,ts,json}`, 5 measured iterations plus one warm-up). All engines returned 10,000 correct matches with the same digest.
 
-| Engine | Average time | Average RAM | Peak RAM |
-| --- | ---: | ---: | ---: |
-| **@optiprune/glob** | **11.106 ms** | **67.52 MB** | **73.74 MB** |
-| tinyglobby 0.2.17 | 14.506 ms | 69.85 MB | 76.54 MB |
-| fast-glob 3.3.3 | 39.790 ms | 81.30 MB | 107.39 MB |
-| node:glob (Node 22.13.0) | 57.551 ms | 93.58 MB | 118.89 MB |
+| Engine                   |  Average time |  Average RAM |     Peak RAM |
+| ------------------------ | ------------: | -----------: | -----------: |
+| **@optiprune/glob**      | **11.106 ms** | **67.52 MB** | **73.74 MB** |
+| tinyglobby 0.2.17        |     14.506 ms |     69.85 MB |     76.54 MB |
+| fast-glob 3.3.3          |     39.790 ms |     81.30 MB |    107.39 MB |
+| node:glob (Node 22.13.0) |     57.551 ms |     93.58 MB |    118.89 MB |
 
 **Test environment:** Node.js 22.13.0, Linux 6.18.38+, x64, Intel Xeon 2.50 GHz (6 cores), 7.85 GB RAM. This is a single run on a shared environment; the values are directional and are not a universal performance guarantee.
 

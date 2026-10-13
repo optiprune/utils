@@ -28,10 +28,16 @@ export type GlobPattern = string | string[];
 export declare function crawlAll(input: GlobPattern, options?: GlobOptions): Promise<string[]>;
 
 /** Async generator for streaming filesystem crawling with backpressure. */
-export declare function crawl(input: string, options?: CrawlOptions): AsyncGenerator<string, void, unknown>;
+export declare function crawl(
+  input: string,
+  options?: CrawlOptions,
+): AsyncGenerator<string, void, unknown>;
 
 /** Synchronous generator for streaming filesystem crawling. */
-export declare function crawlSync(input: string, options?: CrawlOptions): Generator<string, void, unknown>;
+export declare function crawlSync(
+  input: string,
+  options?: CrawlOptions,
+): Generator<string, void, unknown>;
 
 /** Primary glob entrypoint (alias of crawlAll). */
 export declare const glob: typeof crawlAll;

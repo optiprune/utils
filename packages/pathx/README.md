@@ -15,9 +15,9 @@ pnpm add @optiprune/pathx
 import { normalize, isAbsolute, join, resolve } from '@optiprune/pathx';
 
 normalize('src\\lib\\..\\index.js'); // 'src/index.js'
-isAbsolute('/tmp/data');             // true
-join('src', 'lib', 'file.js');       // 'src/lib/file.js'
-resolve('src', 'index.js');           // absolute path from the working directory
+isAbsolute('/tmp/data'); // true
+join('src', 'lib', 'file.js'); // 'src/lib/file.js'
+resolve('src', 'index.js'); // absolute path from the working directory
 ```
 
 ## API

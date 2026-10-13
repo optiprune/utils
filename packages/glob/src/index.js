@@ -343,7 +343,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       for await (const p of crawl(rootPath, inputOptions)) out.push(p);
       return out;
     }
-    const absoluteCwd = root(cwd),
+    const absoluteCwd = join(root(cwd)),
       onlyDirectories = inputOptions.onlyDirectories ?? inputOptions.dirsOnly ?? false,
       filesOnly = onlyDirectories
         ? false

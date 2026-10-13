@@ -2,19 +2,23 @@
   "name": "@optiprune/glob",
   "version": "0.1.0",
   "description": "Fast dependency-light glob crawler with segment matching and bounded traversal.",
+  "keywords": [
+    "crawler",
+    "files",
+    "filesystem",
+    "glob",
+    "nodejs",
+    "walk"
+  ],
+  "homepage": "https://github.com/optiprune/utils/tree/main/packages/glob",
+  "bugs": {
+    "url": "https://github.com/optiprune/utils/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/optiprune/utils.git",
     "directory": "packages/glob"
-  },
-  "bugs": {
-    "url": "https://github.com/optiprune/utils/issues"
-  },
-  "homepage": "https://github.com/optiprune/utils/tree/main/packages/glob",
-  "keywords": ["glob", "filesystem", "crawler", "walk", "files", "nodejs"],
-  "engines": {
-    "node": ">=20"
   },
   "files": [
     "src",
@@ -24,17 +28,20 @@
   ],
   "type": "module",
   "types": "./src/index.d.ts",
-  "scripts": {
-    "test": "vitest run --root ../.. --config vitest.config.js tests/glob.test.js",
-    "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/glob.test.js"
-  },
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
       "import": "./src/public.js"
     }
   },
+  "scripts": {
+    "test": "vitest run --root ../.. --config vitest.config.js tests/glob.test.js",
+    "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/glob.test.js"
+  },
   "dependencies": {
     "@optiprune/pathx": "workspace:*"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

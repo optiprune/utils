@@ -119,7 +119,7 @@ try {
     generatedAt: new Date().toISOString(),
     notes: [
       `Environment: ${cpuModel} (${cpuCores} cores) with ${totalRamGB} GB RAM running on ${platform()} ${release()} (${version()}).`,
-      `Engine versions: ${results.map(r => `${r.engine}@${r.version}`).join(', ')}.`
+      `Engine versions: ${results.map(r => `${r.engine}@${r.version}`).join(', ')}.`,
     ],
   };
 
