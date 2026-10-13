@@ -37,7 +37,7 @@ for (const file of crawlSync('src', { filesOnly: true, absolute: false })) {
 - No runtime dependencies
 - Explicit stack for deep directory trees
 - `Dirent`-based traversal without unnecessary `stat` calls
-- Symlinks are not followed by default; optional cycle protection is available
+- Symlinks are followed by default with cycle protection; disable with `followSymlinks: false`
 - Glob patterns with `**`, `*`, `?`, braces, character classes, and negation
 - `ignore` for pruning entire directories early
 - Bounded active directory reads in `crawlAll`

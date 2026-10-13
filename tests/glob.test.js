@@ -42,7 +42,7 @@ describe('@optiprune/glob', () => {
         'src/nested/deep.ts',
       ]);
 
-      expect(relative(root, [...crawlSync(root, { dirsOnly: true })])).toEqual([
+      expect(relative(root, [...crawlSync(root, { dirsOnly: true, followSymlinks: false })])).toEqual([
         '.config',
         'docs',
         'empty',
@@ -85,12 +85,12 @@ describe('@optiprune/glob', () => {
       expect(
         globSync(['src/index.js', 'docs/*.md'], { cwd: root, absolute: false }).sort(),
       ).toEqual(['docs/readme.md', 'src/index.js']);
-      expect(relative(root, globSync(root, { onlyDirectories: true, maxDepth: 1 }))).toEqual([
+      expect(relative(root, globSync(root, { onlyDirectories: true, maxDepth: 1, followSymlinks: false }))).toEqual([
         'docs',
         'empty',
         'src',
       ]);
-      expect((await crawlAll('**/*', { cwd: root, onlyDirectories: true, absolute: false })).sort()).toEqual([
+      expect((await crawlAll('**/*', { cwd: root, onlyDirectories: true, followSymlinks: false, absolute: false })).sort()).toEqual([
         'docs',
         'empty',
         'empty/real-directory',
