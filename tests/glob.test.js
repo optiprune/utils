@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crawl, crawlAll, crawlSync } from '../packages/glob/src/public.js';
+import glob, { glob as namedGlob, globSync, crawl, crawlAll, crawlSync } from '../packages/glob/src/public.js';
 import { createFixture } from './fixtures/filesystem.js';
 
 const relative = (root, paths) =>
@@ -15,6 +15,20 @@ async function withFixture(test) {
 }
 
 describe('@optiprune/glob', () => {
+  it('keeps crawl APIs and exposes glob aliases', async () => {
+    await withFixture(async ({ root }) => {
+      expect(namedGlob).toBe(crawlAll);
+      expect(glob).toBe(crawlAll);
+      expect(relative(root, await glob('src/**/*.js', { cwd: root, absolute: true }))).toEqual([
+        'src/index.js',
+        'src/index.test.js',
+      ]);
+      expect(relative(root, globSync(root, { filesOnly: true }))).toContain('src/index.js');
+      expect(crawl).toBeTypeOf('function');
+      expect(crawlSync).toBeTypeOf('function');
+    });
+  });
+
   it('crawls asynchronously and synchronously with filtering options', async () => {
     await withFixture(async ({ root }) => {
       const asyncFiles = await crawlAll(root, { filesOnly: true });

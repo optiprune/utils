@@ -2,6 +2,20 @@
   "name": "@optiprune/glob",
   "version": "0.1.0",
   "description": "Fast dependency-light glob crawler with segment matching and bounded traversal.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/optiprune/utils.git",
+    "directory": "packages/glob"
+  },
+  "bugs": {
+    "url": "https://github.com/optiprune/utils/issues"
+  },
+  "homepage": "https://github.com/optiprune/utils/tree/main/packages/glob",
+  "keywords": ["glob", "filesystem", "crawler", "walk", "files", "nodejs"],
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "src",
     "package.json",
@@ -9,12 +23,16 @@
     "LICENSE"
   ],
   "type": "module",
+  "types": "./src/index.d.ts",
   "scripts": {
     "test": "vitest run --root ../.. --config vitest.config.js tests/glob.test.js",
     "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/glob.test.js"
   },
   "exports": {
-    ".": "./src/public.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/public.js"
+    }
   },
   "dependencies": {
     "@optiprune/pathx": "workspace:*"

@@ -2,6 +2,20 @@
   "name": "@optiprune/pathx",
   "version": "0.1.0",
   "description": "Zero-dependency fast path primitives for optiprune.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/optiprune/utils.git",
+    "directory": "packages/pathx"
+  },
+  "bugs": {
+    "url": "https://github.com/optiprune/utils/issues"
+  },
+  "homepage": "https://github.com/optiprune/utils/tree/main/packages/pathx",
+  "keywords": ["path", "paths", "filesystem", "nodejs", "cross-platform"],
+  "engines": {
+    "node": ">=20"
+  },
   "files": [
     "src",
     "package.json",
@@ -9,11 +23,15 @@
     "LICENSE"
   ],
   "type": "module",
+  "types": "./src/index.d.ts",
   "scripts": {
     "test": "vitest run --root ../.. --config vitest.config.js tests/pathx.test.js",
     "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/pathx.test.js"
   },
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
   }
 }
