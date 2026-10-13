@@ -7,7 +7,8 @@ export { isDynamicPattern, escapePath, convertPathToPattern } from '@optiprune/p
 
 export const glob = crawlAll;
 export const globSync = (patterns, options = {}) => {
-  const cwdPath = options.cwd instanceof URL ? fileURLToPath(options.cwd) : (options.cwd ?? process.cwd());
+  const cwdPath =
+    options.cwd instanceof URL ? fileURLToPath(options.cwd) : (options.cwd ?? process.cwd());
   const patternList = Array.isArray(patterns) ? patterns : [patterns];
   const isPattern =
     Array.isArray(patterns) ||
