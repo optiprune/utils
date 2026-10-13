@@ -1,0 +1,11 @@
+{
+  "name": "@optiprune/glob",
+  "version": "0.1.0",
+  "description": "Fast dependency-light glob crawler with segment matching and bounded traversal.",
+  "type": "module",
+  "exports": { ".": "./src/public.js" },
+  "dependencies": { 
+    "@optiprune/pathx": "workspace:*" 
+  },
+  "files": ["src", "package.json"]
+}

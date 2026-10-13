@@ -1,0 +1,12 @@
+{
+  "name": "@optiprune/main",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Zero-dependency iterative filesystem crawler with fast path primitives.",
+  "type": "module",
+  "exports": { ".": "./src/index.js" },
+  "bin": { "fast-crawl": "./src/cli.js" },
+  "scripts": { "test": "node --test", "bench": "node bench/crawl.js", "bench:compare": "node bench/compare.js" },
+  "workspaces": ["packages/*"],
+  "files": ["src", "packages", "README.md", "LICENSE", "package.json"]
+}
