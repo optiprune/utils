@@ -21,8 +21,23 @@ export interface CrawlOptions {
 
 export interface GlobOptions extends CrawlOptions {
   cwd?: string | URL;
-  ignore?: string | string[];
+  ignore?: string | readonly string[];
   dot?: boolean;
+  expandDirectories?: boolean;
+  braceExpansion?: boolean;
+  caseSensitiveMatch?: boolean;
+  debug?: boolean;
+  extglob?: boolean;
+  globstar?: boolean;
+  fs?: {
+    readdir?: typeof import('node:fs').readdir;
+    readdirSync?: typeof import('node:fs').readdirSync;
+    realpath?: typeof import('node:fs').realpath;
+    realpathSync?: typeof import('node:fs').realpathSync;
+    stat?: typeof import('node:fs').stat;
+    statSync?: typeof import('node:fs').statSync;
+  };
+  patterns?: GlobPattern;
 }
 
 export type GlobPattern = string | readonly string[];
@@ -42,11 +57,21 @@ export declare function crawlSync(
   options?: CrawlOptions,
 ): Generator<string, void, unknown>;
 
-/** Primary glob entrypoint (alias of crawlAll). */
-export declare const glob: typeof crawlAll;
+export declare function glob(
+  patterns: GlobPattern,
+  options?: Omit<GlobOptions, 'patterns'>,
+): Promise<string[]>;
 
-/** Synchronous glob entrypoint. */
-export declare function globSync(patterns: GlobPattern, options?: GlobOptions): string[];
+/** @deprecated Pass patterns as the first argument. */
+export declare function glob(options: GlobOptions): Promise<string[]>;
+
+export declare function globSync(
+  patterns: GlobPattern,
+  options?: Omit<GlobOptions, 'patterns'>,
+): string[];
+
+/** @deprecated Pass patterns as the first argument. */
+export declare function globSync(options: GlobOptions): string[];
 
 export declare function isDynamicPattern(pattern: string): boolean;
 export declare function escapePath(path: string): string;

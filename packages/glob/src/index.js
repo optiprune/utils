@@ -378,6 +378,16 @@ export function compilePatternSet(patterns, ignores = []) {
   const ignored = hasNegatives
     ? value => negatives.some(pattern => testNegative(pattern, value))
     : null;
+  const leafNegatives = negatives.filter(pattern => pattern.leaf && pattern.staticPrefix.length === 0);
+  const ignoredLeaf = leafNegatives.length
+    ? value => leafNegatives.some(pattern => pattern.leaf(value))
+    : null;
+  const pathNegatives = negatives.filter(
+    pattern => !pattern.leaf || pattern.staticPrefix.length > 0,
+  );
+  const ignoredPath = pathNegatives.length
+    ? value => pathNegatives.some(pattern => pattern.test(value))
+    : null;
   const positive = positives.length ? positives : [compileGlob('**')];
   const hasDynamic = dynamicPatterns.length > 0;
   const common = {
@@ -400,6 +410,8 @@ export function compilePatternSet(patterns, ignores = []) {
       },
       hasNegatives,
       ignored,
+      ignoredLeaf,
+      ignoredPath,
     };
   }
   return {
@@ -419,6 +431,8 @@ export function compilePatternSet(patterns, ignores = []) {
     leaf: null,
     hasNegatives,
     ignored,
+    ignoredLeaf,
+    ignoredPath,
   };
 }
 function hasGlobMagic(value) {
@@ -564,7 +578,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
         }
       : options,
   );
-  if (Array.isArray(rootPath) || options.absolute === false) {
+  if (options.absolute === false) {
     if (!inputIsPattern) {
       const out = [];
       for await (const p of crawl(rootPath, options)) out.push(p);
@@ -645,11 +659,8 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       const isSymlink = entry.isSymbolicLink();
       let isDir = entry.isDirectory();
       let relativePath;
-      if (matcher?.hasNegatives) {
-        relativePath = batch.relative ? batch.relative + '/' + entry.name : entry.name;
-        if (matcher.ignored(relativePath) || (isDir && matcher.ignored(relativePath + '/')))
-          continue;
-      }
+      const directFile = !isDir && !isSymlink;
+      if (directFile && matcher?.ignoredLeaf?.(entry.name)) continue;
       const p = batch.path + entry.name;
       if (isSymlink && o.followSymlinks) {
         try {
@@ -664,6 +675,18 @@ export async function crawlAll(rootPath, inputOptions = {}) {
           if (error(e, o, p)) continue;
         }
       }
+      if (o.onlyDirectories && !isDir) continue;
+      if (matcher?.hasNegatives) {
+        if (isDir) {
+          relativePath ??= batch.relative ? batch.relative + '/' + entry.name : entry.name;
+          if (matcher.ignored(relativePath) || matcher.ignored(relativePath + '/')) continue;
+        } else if (
+          (!directFile && matcher.ignoredLeaf?.(entry.name)) ||
+          (matcher.ignoredPath && matcher.ignoredPath(
+            batch.relative ? batch.relative + '/' + entry.name : entry.name,
+          ))
+        ) continue;
+      }
       if (matcher && !isDir && matcher.leaf) {
         if (!matcher.leaf(entry.name)) continue;
         if (accepted(entry, p, depth, o)) out.push(p);
@@ -671,7 +694,9 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       }
       let states = batch.states;
       if (matcher) {
-        states = matcher.advance(batch.states, entry.name);
+        states = isDir && matcher.leaf
+          ? batch.states
+          : matcher.advance(batch.states, entry.name);
         if (!states.length) continue;
       }
       if (matcher && !isDir && !matcher.complete(states)) continue;

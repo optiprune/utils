@@ -16,10 +16,10 @@ async function withFixture(test) {
 }
 
 describe('@optiprune/glob', () => {
-  it('keeps crawl APIs and exposes glob aliases', async () => {
+  it('keeps crawl APIs and exposes compatibility glob functions', async () => {
     await withFixture(async ({ root }) => {
-      expect(namedGlob).toBe(crawlAll);
-      expect(glob).toBe(crawlAll);
+      expect(namedGlob).not.toBe(crawlAll);
+      expect(glob).not.toBe(crawlAll);
       expect(relative(root, await glob('src/**/*.js', { cwd: root, absolute: true }))).toEqual([
         'src/index.js',
         'src/index.test.js',
@@ -87,9 +87,9 @@ describe('@optiprune/glob', () => {
         globSync(['src/index.js', 'docs/*.md'], { cwd: root, absolute: false }).sort(),
       ).toEqual(['docs/readme.md', 'src/index.js']);
       expect(relative(root, globSync(root, { onlyDirectories: true, maxDepth: 1, followSymlinks: false }))).toEqual([
-        'docs',
-        'empty',
-        'src',
+        'docs/',
+        'empty/',
+        'src/',
       ]);
       expect((await crawlAll('**/*', { cwd: root, onlyDirectories: true, followSymlinks: false, absolute: false })).sort()).toEqual([
         'docs',
@@ -116,6 +116,24 @@ describe('@optiprune/glob', () => {
       ).toEqual(['docs/readme.md', 'src/index.js']);
       expect(await crawlAll('src', { cwd: root, onlyDirectories: true, absolute: false })).toEqual(['src']);
       expect(await crawlAll('src', { cwd: root, onlyFiles: true, absolute: false })).toEqual([]);
+    });
+  });
+
+  it('uses tinyglobby-compatible defaults and expands directories', async () => {
+    await withFixture(async ({ root }) => {
+      expect(await namedGlob('src', { cwd: root })).toEqual([
+        'src/index.js',
+        'src/index.test.js',
+        'src/nested/deep.ts',
+      ]);
+      expect(await namedGlob('**/*.js', { cwd: root })).toEqual([
+        'src/index.js',
+        'src/index.test.js',
+      ]);
+      expect(await namedGlob('**/*.json', { cwd: root })).toEqual([]);
+      expect(await namedGlob('**/*.json', { cwd: root, dot: true })).toEqual([
+        '.config/secret.json',
+      ]);
     });
   });
 

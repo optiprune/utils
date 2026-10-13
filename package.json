@@ -34,7 +34,8 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "bench": "node bench/crawl.js",
-    "bench:compare": "node bench/compare.js",
+    "bench:compare:1": "node bench/compare.js",
+    "bench:compare:2": "node bench/compat-after-fix.mjs",
     "fmt": "oxfmt --ignore-path .oxfmtignore",
     "fmt:check": "oxfmt --ignore-path .oxfmtignore --check"
   },
