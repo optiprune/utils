@@ -1,6 +1,6 @@
 {
   "name": "@optiprune/pathx",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-dependency fast path primitives for optiprune.",
   "keywords": [
     "cross-platform",
