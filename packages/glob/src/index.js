@@ -52,6 +52,53 @@ function view(entry, directory) {
       }
     : entry;
 }
+export const MAX_RANGE_COUNT = 1000;
+
+function rangeExpansion(value) {
+  const match = /^(-?\d+|[A-Za-z])\.\.(-?\d+|[A-Za-z])(?:\.\.(-?\d+))?$/.exec(value);
+  if (!match) return null;
+  const [, startValue, endValue, stepValue] = match;
+  const startIsNum = /^-?\d+$/.test(startValue);
+  const endIsNum = /^-?\d+$/.test(endValue);
+  if (startIsNum !== endIsNum) return null;
+  const numeric = startIsNum;
+  if (!numeric && (startValue.length !== 1 || endValue.length !== 1)) return null;
+  const start = numeric ? Number(startValue) : startValue.charCodeAt(0);
+  const end = numeric ? Number(endValue) : endValue.charCodeAt(0);
+  const direction = start <= end ? 1 : -1;
+  const step = Math.abs(Number(stepValue ?? 1)) * direction;
+  if (!Number.isFinite(step) || step === 0) return null;
+  const count = Math.floor(Math.abs(end - start) / Math.abs(step)) + 1;
+  if (count > MAX_RANGE_COUNT) return { literal: `\\{${value}\\}` };
+  if (count === 1) return [numeric ? String(start) : String.fromCharCode(start)];
+  if (!numeric && Math.abs(step) === 1 && start <= end) {
+    const first = String.fromCharCode(start),
+      last = String.fromCharCode(end);
+    return [`[${first}-${last}]`];
+  }
+  if (
+    numeric &&
+    Math.abs(step) === 1 &&
+    start <= end &&
+    start >= 0 &&
+    end <= 9 &&
+    startValue.length === 1 &&
+    endValue.length === 1
+  )
+    return [`[${start}-${end}]`];
+  const values = [];
+  const width = numeric
+    ? Math.max(startValue.replace(/^-/, '').length, endValue.replace(/^-/, '').length)
+    : 0;
+  for (let current = start; direction > 0 ? current <= end : current >= end; current += step) {
+    const value = numeric
+      ? String(Math.abs(current)).padStart(width, '0')
+      : String.fromCharCode(current);
+    values.push(numeric && current < 0 ? `-${value}` : value);
+  }
+  return values;
+}
+
 function expandBraces(pattern) {
   const open = pattern.indexOf('{');
   if (open < 0) return [pattern];
@@ -65,17 +112,63 @@ function expandBraces(pattern) {
     }
   }
   if (close < 0) return [pattern];
-  const choices = pattern.slice(open + 1, close).split(','),
+  const body = pattern.slice(open + 1, close);
+  if (body.includes(',') && !body.includes('{') && open === 0 && close === pattern.length - 1)
+    return [pattern];
+  const range = rangeExpansion(body);
+  const choices = range ? (range.literal ? [range.literal] : range) : body.split(','),
     out = [];
   for (const choice of choices)
     for (const expanded of expandBraces(pattern.slice(0, open) + choice + pattern.slice(close + 1)))
       out.push(expanded);
   return out;
 }
-function globRegex(pattern) {
-  let source = '^';
+function splitAlternatives(value) {
+  const result = [],
+    start = 0;
+  let depth = 0,
+    from = 0;
+  for (let i = 0; i < value.length; i++) {
+    if (value[i] === '(') depth++;
+    else if (value[i] === ')') depth--;
+    else if (value[i] === '|' && depth === 0) {
+      result.push(value.slice(from, i));
+      from = i + 1;
+    }
+  }
+  result.push(value.slice(from));
+  return result;
+}
+
+function findClosing(value, open) {
+  let depth = 0;
+  for (let i = open; i < value.length; i++) {
+    if (value[i] === '(') depth++;
+    else if (value[i] === ')' && --depth === 0) return i;
+  }
+  return -1;
+}
+
+function globRegex(pattern, fragment = false) {
+  let source = fragment ? '' : '^';
   for (let i = 0; i < pattern.length; i++) {
     const c = pattern[i];
+    if (c === '\\' && i + 1 < pattern.length) {
+      source += escapeRegex(pattern[++i]);
+      continue;
+    }
+    if ('@?*+!'.includes(c) && pattern[i + 1] === '(') {
+      const end = findClosing(pattern, i + 1);
+      if (end > i) {
+        const inner = splitAlternatives(pattern.slice(i + 2, end))
+          .map(part => globRegex(part, true))
+          .join('|');
+        if (c === '!') source += `(?!(?:${inner})$)[^/]+`;
+        else source += `(?:${inner})${c === '@' ? '' : c}`;
+        i = end;
+        continue;
+      }
+    }
     if (c === '*' && pattern[i + 1] === '*') {
       if (pattern[i + 2] === '/') {
         source += '(?:.*/)?';
@@ -95,23 +188,41 @@ function globRegex(pattern) {
         source += characterClass[1] === '!' ? `[^${characterClass.slice(2)}` : characterClass;
         i = end;
       } else source += '\\[';
-    } else source += /[\\^$+.()|{}]/.test(c) ? '\\' + c : c;
+    } else source += escapeRegex(c);
   }
-  return new RegExp(source + '$');
+  return fragment ? source : new RegExp(source + '$');
 }
+
+function escapeRegex(value) {
+  return value.replace(/[\\^$+.()|{}]/g, '\\$&');
+}
+
+function classifySegment(segment) {
+  const setMatch = /^\{([^{}]+(?:,[^{}]+)+)\}$/.exec(segment);
+  if (setMatch) return { tier: 'set', set: new Set(setMatch[1].split(',')) };
+  if (!/[?*\[\]{}@+!()]/.test(segment)) return { tier: 'exact' };
+  if (segment[0] === '*' && !/[?*\[\]{}@+!()]/.test(segment.slice(1)))
+    return { tier: 'suffix', suffix: segment.slice(1) };
+  return { tier: 'regex', matcher: globRegex(segment) };
+}
+
 function compileSegment(segment) {
-  if (segment === '*') return () => true;
-  if (segment[0] === '*' && !/[?\[\]]/.test(segment.slice(1))) {
-    const suffix = segment.slice(1);
-    if (!suffix) return () => true;
-    return name => name.length > suffix.length && name.endsWith(suffix);
+  const classification = classifySegment(segment);
+  if (classification.tier === 'exact') return name => name === segment;
+  if (classification.tier === 'set') return name => classification.set.has(name);
+  if (classification.tier === 'suffix') {
+    if (!classification.suffix) return () => true;
+    return name =>
+      name.length > classification.suffix.length && name.endsWith(classification.suffix);
   }
-  if (!/[?*\[\]]/.test(segment)) return name => name === segment;
-  const matcher = globRegex(segment);
-  return name => matcher.test(name);
+  return name => classification.matcher.test(name);
 }
 function magicSegment(segment) {
-  return segment === '**' || /[*?\[\]]/.test(segment);
+  return segment === '**' || /[*?\[\]{}@+!()]/.test(segment);
+}
+
+function isNegatedPattern(pattern) {
+  return pattern.startsWith('!') && !pattern.startsWith('!(');
 }
 
 // A small NFA over path segments. It handles globstar at any depth, so leaf
@@ -197,13 +308,13 @@ function compileGlob(pattern) {
 export function compilePatternSet(patterns, ignores = []) {
   ignores = Array.isArray(ignores) ? ignores : [ignores];
   const positives = patterns
-    .filter(pattern => !pattern.startsWith('!'))
+    .filter(pattern => !isNegatedPattern(pattern))
     .map(pattern => compileGlob(pattern));
   const negatives = patterns
-    .filter(pattern => pattern.startsWith('!'))
+    .filter(pattern => isNegatedPattern(pattern))
     .map(pattern => compileGlob(pattern.slice(1)))
     .concat(
-      ignores.map(pattern => compileGlob(pattern.startsWith('!') ? pattern.slice(1) : pattern)),
+      ignores.map(pattern => compileGlob(isNegatedPattern(pattern) ? pattern.slice(1) : pattern)),
     );
   const hasNegatives = negatives.length > 0;
   const ignored = hasNegatives ? value => negatives.some(pattern => pattern.test(value)) : null;

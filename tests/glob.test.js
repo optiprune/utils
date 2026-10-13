@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { mkdir, writeFile } from 'node:fs/promises';
 import glob, { glob as namedGlob, globSync, crawl, crawlAll, crawlSync } from '../packages/glob/src/public.js';
 import { createFixture } from './fixtures/filesystem.js';
 
@@ -110,6 +111,59 @@ describe('@optiprune/glob', () => {
       expect(relative(root, visible)).not.toContain('.config/secret.json');
       const shallow = await crawlAll(root, { filesOnly: true, maxDepth: 0 });
       expect(relative(root, shallow)).toEqual([]);
+    });
+  });
+
+  it('supports bounded numeric and alpha brace ranges without expanding huge ranges', async () => {
+    await withFixture(async ({ root, path }) => {
+      await mkdir(path('ranges'), { recursive: true });
+      await Promise.all([
+        writeFile(path('ranges', '03.js'), '03'),
+        writeFile(path('ranges', '04.js'), '04'),
+        writeFile(path('ranges', '05.js'), '05'),
+        writeFile(path('ranges', 'a.txt'), 'a'),
+        writeFile(path('ranges', 'c.txt'), 'c'),
+        writeFile(path('ranges', 'e.txt'), 'e'),
+      ]);
+      expect((await crawlAll('ranges/{03..05}.js', { cwd: root, absolute: false })).sort()).toEqual([
+        'ranges/03.js',
+        'ranges/04.js',
+        'ranges/05.js',
+      ]);
+      expect((await crawlAll('ranges/{a..e..2}.txt', { cwd: root, absolute: false })).sort()).toEqual([
+        'ranges/a.txt',
+        'ranges/c.txt',
+        'ranges/e.txt',
+      ]);
+      expect((await crawlAll('ranges/{e..a}.txt', { cwd: root, absolute: false })).sort()).toEqual([
+        'ranges/a.txt',
+        'ranges/c.txt',
+        'ranges/e.txt',
+      ]);
+      expect(await crawlAll('ranges/{1..1001}.js', { cwd: root, absolute: false })).toEqual([]);
+      expect(await crawlAll('ranges/{1..z}.js', { cwd: root, absolute: false })).toEqual([]);
+    });
+  });
+
+  it('matches segment-bounded extglobs and literal brace sets', async () => {
+    await withFixture(async ({ root }) => {
+      expect((await crawlAll('src/@(index|nested).*', { cwd: root, absolute: false })).sort()).toEqual([
+        'src/index.js',
+        'src/index.test.js',
+      ]);
+      expect((await crawlAll('**/+(index|deep).*', { cwd: root, absolute: false })).sort()).toEqual([
+        'src/index.js',
+        'src/index.test.js',
+        'src/nested/deep.ts',
+      ]);
+      expect(await crawlAll('**/!(index.test.js)', { cwd: root, absolute: false })).toContain(
+        'src/index.js',
+      );
+      expect(await crawlAll('!(index.test.js)', { cwd: root, absolute: false })).toEqual([]);
+      expect(await crawlAll('{src,docs}/*.md', { cwd: root, absolute: false })).toEqual([
+        'docs/readme.md',
+      ]);
+      expect(await crawlAll('{src,docs}', { cwd: root, absolute: false })).toEqual([]);
     });
   });
 
