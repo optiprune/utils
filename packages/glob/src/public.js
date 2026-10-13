@@ -33,8 +33,12 @@ export const globSync = (patterns, options = {}) => {
   const cwd = resolve(cwdPath);
   const cwdPrefix = cwd.endsWith('/') ? cwd : `${cwd}/`;
   const matcher = compilePatternSet(patternList, options.ignore ?? []);
+  const crawlRoot =
+    matcher.staticPrefix.length && !matcher.hasStatics
+      ? resolve(cwd, ...matcher.staticPrefix)
+      : cwd;
   const result = [];
-  for (const path of crawlSync(cwd, {
+  for (const path of crawlSync(crawlRoot, {
     ...options,
     filesOnly,
     dirsOnly: onlyDirectories,
@@ -42,7 +46,9 @@ export const globSync = (patterns, options = {}) => {
     filter: (path, entry, depth) => {
       if (options.filter && options.filter(path, entry, depth) === false) return false;
       const relativePath = path.startsWith(cwdPrefix) ? path.slice(cwdPrefix.length) : path;
-      return matcher.test(relativePath) && (!matcher.ignored || !matcher.ignored(relativePath));
+      const matches =
+        matcher.leaf && entry.isFile() ? matcher.leaf(entry.name) : matcher.test(relativePath);
+      return matches && (!matcher.ignored || !matcher.ignored(relativePath));
     },
   })) {
     result.push(
