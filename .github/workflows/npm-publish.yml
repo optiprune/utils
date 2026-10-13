@@ -46,12 +46,34 @@ jobs:
         run: |
           node -e '
             const fs = require("node:fs");
+            const path = require("node:path");
+
+            // 1. Update package.json
             const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
             pkg.name = "microglob";
             delete pkg.repository?.directory;
             fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+
+            // 2. Replace @optiprune/glob with microglob across text files
+            const extensions = new Set([".md", ".js", ".mjs", ".cjs", ".ts", ".d.ts", ".json"]);
+
+            function replaceInDir(dir) {
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory() && entry.name !== "node_modules") {
+                  replaceInDir(fullPath);
+                } else if (entry.isFile() && extensions.has(path.extname(entry.name))) {
+                  const content = fs.readFileSync(fullPath, "utf8");
+                  if (content.includes("@optiprune/glob")) {
+                    fs.writeFileSync(fullPath, content.replaceAll("@optiprune/glob", "microglob"));
+                  }
+                }
+              }
+            }
+
+            replaceInDir(".");
           '
-          pnpm publish --access public --no-git-checks --provenance
+          pnpm publish --access public --no-git-checks --provenance --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         continue-on-error: true
