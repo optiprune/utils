@@ -523,18 +523,18 @@ export function* crawlSync(input, inputOptions) {
       if (dir && current.depth < o.maxDepth && (!isSymlink || o.followSymlinks)) {
         if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
         if (seenPaths) {
-        const realPath = (() => {
-          try {
-            return realpathSync(p);
-          } catch {
-            return p;
-          }
-        })();
-        if (seenPaths.has(realPath)) continue;
-        seenPaths.add(realPath);
+          const realPath = (() => {
+            try {
+              return realpathSync(p);
+            } catch {
+              return p;
+            }
+          })();
+          if (seenPaths.has(realPath)) continue;
+          seenPaths.add(realPath);
+        }
+        stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
       }
-      stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
-    }
     }
   }
 }
