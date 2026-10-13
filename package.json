@@ -21,12 +21,16 @@
     ".": "./src/index.js"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
     "bench": "node bench/crawl.js",
     "bench:compare": "node bench/compare.js",
     "fmt": "oxfmt --ignore-path .oxfmtignore"
   },
   "devDependencies": {
-    "oxfmt": "0.72.0"
+    "@vitest/coverage-v8": "^3.2.7",
+    "oxfmt": "0.72.0",
+    "vitest": "^3.2.7"
   }
 }

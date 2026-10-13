@@ -228,6 +228,7 @@ export async function* crawl(input, inputOptions) {
       entries = await readdir(current.path, { withFileTypes: true });
     } catch (e) {
       if (error(e, o, current.path)) continue;
+      entries = [];
     }
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
@@ -270,6 +271,7 @@ export function* crawlSync(input, inputOptions) {
       entries = readdirSync(current.path, { withFileTypes: true });
     } catch (e) {
       if (error(e, o, current.path)) continue;
+      entries = [];
     }
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i];
@@ -320,7 +322,13 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       ? { ...inputOptions, filesOnly: true, includeHidden: inputOptions.includeHidden ?? false }
       : inputOptions,
   );
-  if (o.followSymlinks || o.signal || typeof o.onError === 'function') {
+  if (
+    o.followSymlinks ||
+    o.signal ||
+    o.maxDepth !== Infinity ||
+    o.onError !== 'throw' ||
+    typeof o.onError === 'function'
+  ) {
     if (!inputIsPattern) {
       const out = [];
       for await (const p of crawl(rootPath, inputOptions)) out.push(p);

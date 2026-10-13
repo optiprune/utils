@@ -33,29 +33,15 @@ jobs:
       # 3. pnpm equivalent of `npm ci`
       - run: pnpm install --frozen-lockfile
 
-      # 4. Filter tests by workspace/package
-      - name: Run Glob Tests
-        run: pnpm --filter @optiprune/glob test
+      - name: Run Vitest with coverage
+        run: pnpm test:coverage
 
-      - name: Upload coverage reports to Codecov (Glob)
+      - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          slug: optiprune/glob
-          flags: glob-${{ matrix.os }}-node-${{ matrix.node-version }}
-          name: codecov-${{ matrix.os }}-node-${{ matrix.node-version }}-glob
-          fail_ci_if_error: false
-        continue-on-error: true
-
-      - name: Run PathX Tests
-        run: pnpm --filter @optiprune/pathx test
-
-      - name: Upload coverage reports to Codecov (PathX)
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: optiprune/pathx
-          flags: pathx-${{ matrix.os }}-node-${{ matrix.node-version }}
-          name: codecov-${{ matrix.os }}-node-${{ matrix.node-version }}-pathx
+          slug: optiprune/utils
+          flags: ${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: codecov-${{ matrix.os }}-node-${{ matrix.node-version }}
           fail_ci_if_error: false
         continue-on-error: true

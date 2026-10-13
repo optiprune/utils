@@ -9,6 +9,10 @@
     "LICENSE"
   ],
   "type": "module",
+  "scripts": {
+    "test": "vitest run --root ../.. --config vitest.config.js tests/pathx.test.js",
+    "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/pathx.test.js"
+  },
   "exports": {
     ".": "./src/index.js"
   }

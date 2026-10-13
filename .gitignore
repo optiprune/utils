@@ -2,6 +2,10 @@
 **/tests/**
 **/test/**
 **/fixtures/**
+!tests/
+!tests/fixtures/
+!tests/**/*.js
+!tests/fixtures/**/*.js
 
 # Build artifacts & package manager directories
 dist/**

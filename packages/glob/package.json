@@ -9,6 +9,10 @@
     "LICENSE"
   ],
   "type": "module",
+  "scripts": {
+    "test": "vitest run --root ../.. --config vitest.config.js tests/glob.test.js",
+    "test:coverage": "vitest run --root ../.. --config vitest.config.js --coverage tests/glob.test.js"
+  },
   "exports": {
     ".": "./src/public.js"
   },

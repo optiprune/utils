@@ -18,6 +18,7 @@ function separatorAt(input, index) {
 }
 export function normalize(input) {
   if (typeof input !== 'string') throw new TypeError('path must be a string');
+  if (input.length === 0) return '.';
   let dirty = false;
   for (let i = 0; i < input.length; i++) {
     const c = input.charCodeAt(i);
