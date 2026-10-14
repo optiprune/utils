@@ -6,6 +6,8 @@ import crypto from 'node:crypto';
 import { glob as microglob } from '../packages/glob/src/public.js';
 import { glob as tinyglobby } from 'tinyglobby';
 
+const isTable = process.argv.includes('--table');
+
 const profiles = [
   {
     name: 'shallow-wide',
@@ -152,16 +154,31 @@ for (const profile of profiles) {
   }
 }
 
-console.log(
-  JSON.stringify(
-    {
-      node: process.version,
-      profiles: profiles.map(({ name, description }) => ({ name, description })),
-      warmups: 3,
-      measuredRuns: 10,
-      results: allResults,
-    },
-    null,
-    2,
-  ),
-);
+if (isTable) {
+  console.log(`\nNode: ${process.version} | 3 warmups, 10 measured runs\n`);
+  console.table(
+    allResults.map(r => ({
+      Profile: r.profile,
+      Case: r.case,
+      Count: r.microglob.count,
+      Parity: r.parity ? 'MATCH' : 'MISMATCH',
+      'microglob (avg)': `${r.microglob.avgMs.toFixed(3)} ms`,
+      'tinyglobby (avg)': `${r.tinyglobby.avgMs.toFixed(3)} ms`,
+      Ratio: `${r.ratioAvg.toFixed(2)}x`,
+    })),
+  );
+} else {
+  console.log(
+    JSON.stringify(
+      {
+        node: process.version,
+        profiles: profiles.map(({ name, description }) => ({ name, description })),
+        warmups: 3,
+        measuredRuns: 10,
+        results: allResults,
+      },
+      null,
+      2,
+    ),
+  );
+}
