@@ -238,6 +238,12 @@ function normalizeStaticPath(value) {
     .replace(/\/{2,}/g, '/');
 }
 
+function pathKey(value) {
+  const normalized = value.replaceAll('\\', '/');
+  if (normalized === '/' || /^[A-Za-z]:\/$/.test(normalized)) return normalized;
+  return normalized.replace(/\/+$/, '');
+}
+
 function relativeTo(base, value) {
   const normalizedBase = normalizeStaticPath(base).replace(/\/$/, '');
   const normalizedValue = normalizeStaticPath(value);
@@ -447,8 +453,14 @@ function normalizeCwd(cwd) {
 
 export async function* crawl(input, inputOptions) {
   const o = opts(inputOptions),
-    stack = [{ path: o.absolute ? root(input) : input, relative: '', depth: 0 }],
-    seenPaths = o.followSymlinks ? new Set([root(input).replace(/\/$/, '')]) : null;
+    startPath = o.absolute ? root(input) : input,
+    startRealPath = o.followSymlinks
+      ? await realpath(startPath).catch(() => root(startPath))
+      : startPath,
+    stack = [
+      { path: startPath, realPath: startRealPath, viaSymlink: false, relative: '', depth: 0 },
+    ],
+    seenPaths = o.followSymlinks ? new Set([pathKey(startRealPath)]) : null;
   while (stack.length) {
     if (o.signal?.aborted) throw o.signal.reason ?? new Error('crawl aborted');
     const current = stack.pop();
@@ -470,14 +482,22 @@ export async function* crawl(input, inputOptions) {
       const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
       let dir = entry.isDirectory();
       const isSymlink = entry.isSymbolicLink();
+      let directoryRealPath = join(current.realPath, entry.name),
+        directoryViaSymlink = current.viaSymlink,
+        directorySeen = false,
+        skipTraverse = false;
       if (isSymlink && o.followSymlinks) {
         try {
           const target = await stat(p);
           dir = target.isDirectory();
           if (dir && seenPaths) {
             const targetPath = await realpath(p);
-            if (seenPaths.has(targetPath)) continue;
-            seenPaths.add(targetPath);
+            const targetKey = pathKey(targetPath);
+            if (seenPaths.has(targetKey)) skipTraverse = true;
+            else seenPaths.add(targetKey);
+            directoryRealPath = targetPath;
+            directoryViaSymlink = true;
+            directorySeen = true;
           }
         } catch (e) {
           if (error(e, o, p)) continue;
@@ -485,22 +505,41 @@ export async function* crawl(input, inputOptions) {
       }
       const e = view(entry, dir);
       if (accepted(e, p, depth, o)) yield p;
+      if (skipTraverse) continue;
       if (dir && current.depth < o.maxDepth && (!isSymlink || o.followSymlinks)) {
         if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
-        if (seenPaths) {
-          const realPath = await realpath(p).catch(() => p);
-          if (seenPaths.has(realPath)) continue;
-          seenPaths.add(realPath);
+        if (seenPaths && !directorySeen) {
+          const key = pathKey(directoryRealPath);
+          if (seenPaths.has(key)) continue;
+          seenPaths.add(key);
         }
-        stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
+        stack.push({
+          path: p,
+          realPath: directoryRealPath,
+          viaSymlink: directoryViaSymlink,
+          relative: relativePath,
+          depth: current.depth + 1,
+        });
       }
     }
   }
 }
 export function* crawlSync(input, inputOptions) {
   const o = opts(inputOptions),
-    stack = [{ path: o.absolute ? root(input) : input, relative: '', depth: 0 }],
-    seenPaths = o.followSymlinks ? new Set([root(input).replace(/\/$/, '')]) : null;
+    startPath = o.absolute ? root(input) : input,
+    startRealPath = o.followSymlinks
+      ? (() => {
+          try {
+            return realpathSync(startPath);
+          } catch {
+            return root(startPath);
+          }
+        })()
+      : startPath,
+    stack = [
+      { path: startPath, realPath: startRealPath, viaSymlink: false, relative: '', depth: 0 },
+    ],
+    seenPaths = o.followSymlinks ? new Set([pathKey(startRealPath)]) : null;
   while (stack.length) {
     const current = stack.pop();
     let entries;
@@ -521,14 +560,22 @@ export function* crawlSync(input, inputOptions) {
       const relativePath = current.relative ? `${current.relative}/${entry.name}` : entry.name;
       let dir = entry.isDirectory();
       const isSymlink = entry.isSymbolicLink();
+      let directoryRealPath = join(current.realPath, entry.name),
+        directoryViaSymlink = current.viaSymlink,
+        directorySeen = false,
+        skipTraverse = false;
       if (isSymlink && o.followSymlinks) {
         try {
           const target = statSync(p);
           dir = target.isDirectory();
           if (dir && seenPaths) {
             const targetPath = realpathSync(p);
-            if (seenPaths.has(targetPath)) continue;
-            seenPaths.add(targetPath);
+            const targetKey = pathKey(targetPath);
+            if (seenPaths.has(targetKey)) skipTraverse = true;
+            else seenPaths.add(targetKey);
+            directoryRealPath = targetPath;
+            directoryViaSymlink = true;
+            directorySeen = true;
           }
         } catch (e) {
           if (error(e, o, p)) continue;
@@ -536,20 +583,21 @@ export function* crawlSync(input, inputOptions) {
       }
       const e = view(entry, dir);
       if (accepted(e, p, depth, o)) yield p;
+      if (skipTraverse) continue;
       if (dir && current.depth < o.maxDepth && (!isSymlink || o.followSymlinks)) {
         if (o.shouldTraverse && !o.shouldTraverse(relativePath)) continue;
-        if (seenPaths) {
-          const realPath = (() => {
-            try {
-              return realpathSync(p);
-            } catch {
-              return p;
-            }
-          })();
-          if (seenPaths.has(realPath)) continue;
-          seenPaths.add(realPath);
+        if (seenPaths && !directorySeen) {
+          const key = pathKey(directoryRealPath);
+          if (seenPaths.has(key)) continue;
+          seenPaths.add(key);
         }
-        stack.push({ path: p, relative: relativePath, depth: current.depth + 1 });
+        stack.push({
+          path: p,
+          realPath: directoryRealPath,
+          viaSymlink: directoryViaSymlink,
+          relative: relativePath,
+          depth: current.depth + 1,
+        });
       }
     }
   }
@@ -628,13 +676,16 @@ export async function crawlAll(rootPath, inputOptions = {}) {
     head++;
     return item;
   };
+  const startRealPath = o.followSymlinks ? await realpath(base).catch(() => root(base)) : base;
+  const seenPaths = o.followSymlinks ? new Set([pathKey(startRealPath)]) : null;
   enqueue({
     path: (o.absolute ? root(base) : base).replace(/\/$/, '') + '/',
     relative: matcher?.staticPrefix.join('/') ?? '',
     depth: matcher?.staticPrefix.length ?? 0,
     states: matcher?.initialAtStaticBase,
+    realPath: startRealPath,
+    viaSymlink: false,
   });
-  const seenPaths = o.followSymlinks ? new Set([root(base).replace(/\/$/, '')]) : null;
   let active = 0,
     failed = false,
     resolveDone,
@@ -664,14 +715,22 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       const directFile = !isDir && !isSymlink;
       if (directFile && matcher?.ignoredLeaf?.(entry.name)) continue;
       const p = batch.path + entry.name;
+      let directoryRealPath = join(batch.realPath, entry.name),
+        directoryViaSymlink = batch.viaSymlink,
+        directorySeen = false,
+        skipTraverse = false;
       if (isSymlink && o.followSymlinks) {
         try {
           const target = await stat(p);
           isDir = target.isDirectory();
           if (isDir && seenPaths) {
             const targetPath = await realpath(p);
-            if (seenPaths.has(targetPath)) continue;
-            seenPaths.add(targetPath);
+            const targetKey = pathKey(targetPath);
+            if (seenPaths.has(targetKey)) skipTraverse = true;
+            else seenPaths.add(targetKey);
+            directoryRealPath = targetPath;
+            directoryViaSymlink = true;
+            directorySeen = true;
           }
         } catch (e) {
           if (error(e, o, p)) continue;
@@ -701,6 +760,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       }
       if (matcher && !isDir && !matcher.complete(states)) continue;
       if (accepted(entry, p, depth, o) && (!matcher || matcher.complete(states))) out.push(p);
+      if (skipTraverse) continue;
       if (
         isDir &&
         batch.depth < o.maxDepth &&
@@ -711,10 +771,10 @@ export async function crawlAll(rootPath, inputOptions = {}) {
             relativePath ?? (batch.relative ? batch.relative + '/' + entry.name : entry.name),
           ))
       ) {
-        if (seenPaths) {
-          const realPath = await realpath(p).catch(() => p);
-          if (seenPaths.has(realPath)) continue;
-          seenPaths.add(realPath);
+        if (seenPaths && !directorySeen) {
+          const key = pathKey(directoryRealPath);
+          if (seenPaths.has(key)) continue;
+          seenPaths.add(key);
         }
         enqueue({
           path: p + '/',
@@ -723,6 +783,8 @@ export async function crawlAll(rootPath, inputOptions = {}) {
             : undefined,
           depth: batch.depth + 1,
           states,
+          realPath: directoryRealPath,
+          viaSymlink: directoryViaSymlink,
         });
       }
     }

@@ -3,12 +3,16 @@
   "version": "0.1.3",
   "description": "Fast dependency-light glob crawler with segment matching and bounded traversal.",
   "keywords": [
-    "crawler",
-    "files",
-    "filesystem",
     "glob",
-    "nodejs",
-    "walk"
+    "microglob",
+    "tinyglobby",
+    "fast-glob",
+    "fdir",
+    "crawler",
+    "filesystem",
+    "walk",
+    "prune",
+    "nodejs"
   ],
   "homepage": "https://github.com/optiprune/utils/tree/main/packages/glob",
   "bugs": {

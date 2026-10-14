@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import glob, { glob as namedGlob, globSync, crawl, crawlAll, crawlSync } from '../packages/glob/src/public.js';
 import { createFixture } from './fixtures/filesystem.js';
 
@@ -221,6 +221,45 @@ describe('@optiprune/glob', () => {
         expect(relative(root, result)).toContain('src/index.js');
         expect(relative(root, result)).not.toContain('linked-src/index.js');
       }
+    });
+  });
+
+  it('deduplicates aliases, yields duplicate symlink entries, and covers all crawlers', async () => {
+      await withFixture(async ({ root, path }) => {
+      await mkdir(path('0_real', 'child'), { recursive: true });
+      await mkdir(path('1_symlink'), { recursive: true });
+      await writeFile(path('0_real', 'child', 'x.js'), 'x');
+      try {
+        await symlink(path('0_real'), path('1_symlink', 'link'), 'junction');
+      } catch {
+        return;
+      }
+      const allowed = new Set(['0_real/child/x.js', '1_symlink/link/child/x.js']);
+      const asyncFiles = relative(
+          root,
+          (await crawlAll(root, { filesOnly: true, followSymlinks: true })).filter(path =>
+            path.endsWith('/x.js'),
+          ),
+        );
+      const syncFiles = relative(
+        root,
+          [...crawlSync(root, { filesOnly: true, followSymlinks: true })].filter(path =>
+            path.endsWith('/x.js'),
+          ),
+        );
+      const asyncGenFiles = [];
+      for await (const file of crawl(root, { filesOnly: true, followSymlinks: true })) {
+        if (file.endsWith('/x.js')) asyncGenFiles.push(relative(root, [file])[0]);
+      }
+      expect(asyncFiles).toHaveLength(1);
+      expect(syncFiles).toHaveLength(1);
+      expect(asyncGenFiles).toHaveLength(1);
+      expect(allowed.has(asyncFiles[0])).toBe(true);
+      expect(allowed.has(syncFiles[0])).toBe(true);
+      expect(allowed.has(asyncGenFiles[0])).toBe(true);
+
+      const directories = await crawlAll(root, { filesOnly: false, followSymlinks: true });
+      expect(directories.some(file => file.endsWith('/link'))).toBe(true);
     });
   });
 });
