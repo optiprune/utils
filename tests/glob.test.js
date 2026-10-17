@@ -146,6 +146,31 @@ describe('@optiprune/glob', () => {
     });
   });
 
+  it('keeps optimized all-entry matching correct at the depth boundary', async () => {
+    await withFixture(async ({ root }) => {
+      expect(
+        (await crawlAll('**/*', { cwd: root, absolute: false, maxDepth: 1 })).sort(),
+      ).toEqual([]);
+      expect(
+        (await crawlAll('**/*', {
+          cwd: root,
+          absolute: false,
+          onlyDirectories: true,
+          maxDepth: 1,
+          followSymlinks: false,
+        })).sort(),
+      ).toEqual(['docs', 'empty', 'src']);
+      expect(
+        (await crawlAll('**', {
+          cwd: root,
+          absolute: false,
+          onlyDirectories: true,
+          followSymlinks: false,
+        })).sort(),
+      ).toEqual(['docs', 'empty', 'empty/real-directory', 'src', 'src/nested']);
+    });
+  });
+
   it('supports bounded numeric and alpha brace ranges without expanding huge ranges', async () => {
     await withFixture(async ({ root, path }) => {
       await mkdir(path('ranges'), { recursive: true });

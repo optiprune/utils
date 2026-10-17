@@ -351,7 +351,12 @@ function compileGlob(pattern) {
     leafMatchers.length === remaining.length
       ? name => leafMatchers.some(match => match(name))
       : null;
-  return { advance, complete, test, initialAtStaticBase, staticPrefix, leaf };
+  const always = remaining.every(
+    parts =>
+      (parts.length === 1 && (parts[0] === '**' || parts[0] === '*')) ||
+      (parts.length === 2 && parts[0] === '**' && parts[1] === '*'),
+  );
+  return { advance, complete, test, initialAtStaticBase, staticPrefix, leaf, always };
 }
 export function compilePatternSet(patterns, ignores = []) {
   ignores = Array.isArray(ignores) ? ignores : [ignores];
@@ -422,6 +427,10 @@ export function compilePatternSet(patterns, ignores = []) {
       ignoredPath,
     };
   }
+  const leaf = positive.every(pattern => pattern.leaf)
+    ? name => positive.some(pattern => pattern.leaf(name))
+    : null;
+  const always = positive.every(pattern => pattern.always);
   return {
     ...common,
     staticPrefix: [],
@@ -436,7 +445,8 @@ export function compilePatternSet(patterns, ignores = []) {
       const normalized = normalizeStaticPath(value);
       return staticExact.has(normalized) || positive.some(pattern => pattern.test(normalized));
     },
-    leaf: null,
+    leaf,
+    always,
     hasNegatives,
     ignored,
     ignoredLeaf,
@@ -696,6 +706,7 @@ export async function crawlAll(rootPath, inputOptions = {}) {
   });
   async function processBatch(batch) {
     if (o.signal?.aborted) throw o.signal.reason ?? new Error('crawl aborted');
+    if (batch.depth >= o.maxDepth) return;
     let entries;
     try {
       entries = await readdir(batch.path, { withFileTypes: true });
@@ -715,10 +726,11 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       const directFile = !isDir && !isSymlink;
       if (directFile && matcher?.ignoredLeaf?.(entry.name)) continue;
       const p = batch.path + entry.name;
-      let directoryRealPath = join(batch.realPath, entry.name),
+      let directoryRealPath,
         directoryViaSymlink = batch.viaSymlink,
         directorySeen = false,
         skipTraverse = false;
+      if (o.followSymlinks) directoryRealPath = join(batch.realPath, entry.name);
       if (isSymlink && o.followSymlinks) {
         try {
           const target = await stat(p);
@@ -750,16 +762,21 @@ export async function crawlAll(rootPath, inputOptions = {}) {
       }
       if (matcher && !isDir && matcher.leaf) {
         if (!matcher.leaf(entry.name)) continue;
-        if (accepted(entry, p, depth, o)) out.push(p);
+        if (o.onlyFiles && directFile && !o.filter) out.push(p);
+        else if (accepted(entry, p, depth, o)) out.push(p);
         continue;
       }
       let states = batch.states;
-      if (matcher) {
+      if (matcher && !matcher.always && !(matcher.leaf && !isDir)) {
         states = isDir && matcher.leaf ? batch.states : matcher.advance(batch.states, entry.name);
         if (!states.length) continue;
       }
-      if (matcher && !isDir && !matcher.complete(states)) continue;
-      if (accepted(entry, p, depth, o) && (!matcher || matcher.complete(states))) out.push(p);
+      if (matcher && !matcher.always && !matcher.leaf && !isDir && !matcher.complete(states))
+        continue;
+      if (!matcher || matcher.always || matcher.complete(states)) {
+        if (!o.filter && ((o.onlyFiles && directFile) || (o.onlyDirectories && isDir))) out.push(p);
+        else if (accepted(entry, p, depth, o)) out.push(p);
+      }
       if (skipTraverse) continue;
       if (
         isDir &&
